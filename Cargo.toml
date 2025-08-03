@@ -1,0 +1,14 @@
+[package]
+name = "tagtool"
+version = "0.1.0"
+description = "Find files by tags"
+authors = ["tczyz <tomczyz97@gmail.com>"]
+license = "MIT"
+edition = "2024"
+
+[dependencies]
+crossterm = "0.28.1"
+ratatui = "0.29.0"
+color-eyre = "0.6.3"
+directories = "6.0.0"
+clap = { version = "4.5.42", features = ["cargo"] }
