@@ -1,7 +1,9 @@
+mod cli;
 mod tags_storage;
 
+use crate::cli::{Cli, Commands, TagsCommands};
 use crate::tags_storage::TagsStorage;
-use clap::{Arg, Command, command};
+use clap::Parser;
 use color_eyre::{Report, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::{
@@ -13,51 +15,22 @@ use ratatui::{
 use std::borrow::Cow;
 
 fn main() -> Result<()> {
-    let matches = command!()
-        .propagate_version(true)
-        .subcommand_required(true)
-        .arg_required_else_help(true)
-        .subcommand(
-            Command::new("tags")
-                .about("Manage user's tags.")
-                .subcommand(Command::new("list").about("Lists all tags."))
-                .subcommand(
-                    Command::new("add")
-                        .arg(Arg::new("name").required(true))
-                        .about("Add a new tag"),
-                ),
-        )
-        .subcommand(
-            Command::new("items")
-                .about("Manage items.")
-                .subcommand(Command::new("search").about("Search items by tags.")),
-        )
-        .subcommand(Command::new("tag").about("Tag an items"))
-        .get_matches();
+    let cli = Cli::parse();
 
     let mut app = App::new();
 
-    match matches.subcommand() {
-        Some(("tag", _)) => launch_tui(app)?,
-        Some(("tags", sub_matches)) => match sub_matches.subcommand() {
-            Some(("list", _)) => {
-                app.tag_storage.list().for_each(|s| println!("{}", s));
-                Ok(())
+    match &cli.command {
+        Commands::Tag => launch_tui(app)?,
+        Commands::Tags { command } => Ok(match command {
+            TagsCommands::List => app.tag_storage.list().for_each(|s| println!("{}", s)),
+            TagsCommands::Add { name } => {
+                app.tag_storage.add(Cow::Owned(name.to_string()));
             }
-            Some(("add", sub_matches)) => {
-                let tag = sub_matches.get_one::<String>("name").unwrap();
-                app.tag_storage.add(Cow::Owned(tag.to_string()));
-                Ok(())
-            }
-            _ => unreachable!(
-                "Exhausted list of subcommands and subcommand_required prevents `None`"
-            ),
-        },
-        _ => unreachable!("Exhausted list of subcommands and subcommand_required prevents `None`"),
-    }?;
-
-    // launch_tui()?
-    Ok(())
+        }),
+        Commands::Items { command } => Ok(match command {
+            _ => {}
+        }),
+    }
 }
 
 fn launch_tui(app: App) -> Result<Result<()>, Report> {
