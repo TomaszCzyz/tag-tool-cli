@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(
@@ -24,8 +25,11 @@ pub enum Commands {
         #[command(subcommand)]
         command: ItemsCommands,
     },
-    /// Tag an items
-    Tag,
+    /// Tag an item.
+    Tag {
+        path: PathBuf,
+        tags: Option<Vec<String>>,
+    },
 }
 
 #[derive(Subcommand)]

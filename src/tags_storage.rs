@@ -1,61 +1,81 @@
-use directories::ProjectDirs;
+use crate::PROJECT_DIRS;
+use log::info;
+use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::{Pool, Sqlite};
 use std::borrow::Cow;
 use std::collections::HashSet;
-use std::collections::hash_set::Iter;
 use std::fs;
-use std::io::Write;
-use std::path::PathBuf;
+use std::fs::OpenOptions;
+
+type Db = Pool<Sqlite>;
 
 #[derive(Debug)]
-pub struct TagsStorage {
-    tags_data_path: PathBuf,
+pub struct Storage {
+    db: Db,
 
     /// All user defined tags.
     tags: HashSet<Cow<'static, str>>,
 }
 
-impl Default for TagsStorage {
-    fn default() -> Self {
-        if let Some(proj_dirs) = ProjectDirs::from("com", "example", "tagtool") {
-            let data_path = proj_dirs.data_dir().join("tags.txt");
-
-            if !data_path.exists() {
-                fs::create_dir_all(proj_dirs.data_dir()).unwrap();
-                fs::write(&data_path, "").unwrap();
-            }
-
-            let tags = fs::read_to_string(&data_path)
-                .unwrap()
-                .lines()
-                .map(|line| Cow::Owned(line.to_string()))
-                .collect::<HashSet<_>>();
-
-            Self {
-                tags_data_path: data_path,
-                tags,
-            }
-        } else {
-            panic!("Failed to get project directories");
-        }
+impl Storage {
+    pub(crate) fn add(&self, p0: Cow<'static, str>) {
+        todo!()
     }
 }
 
-impl TagsStorage {
-    pub fn add(&mut self, tag: Cow<'static, str>) {
-        if self.tags.contains(&tag) {
-            return;
+impl Storage {
+    pub(crate) fn list(&self) -> Vec<Cow<'static, str>> {
+        todo!()
+    }
+}
+
+impl Storage {
+    pub async fn initialize() -> Self {
+        let db = Storage::setup_db().await;
+
+        Self {
+            db,
+            tags: HashSet::new(),
         }
-
-        let mut file = fs::OpenOptions::new()
-            .append(true)
-            .open(&self.tags_data_path)
-            .unwrap();
-
-        file.write_all(format!("{}\n", tag).as_bytes()).unwrap();
-        self.tags.insert(tag);
     }
 
-    pub fn list(&self) -> Iter<'_, Cow<'static, str>> {
-        self.tags.iter()
+    async fn setup_db() -> Db {
+        let mut path = PROJECT_DIRS.data_dir().to_path_buf();
+
+        match fs::create_dir_all(path.clone()) {
+            Ok(_) => {}
+            Err(err) => {
+                panic!("error creating directory {}", err);
+            }
+        };
+
+        path.push("db.sqlite");
+
+        let result = OpenOptions::new().create(true).write(true).open(&path);
+
+        match result {
+            Ok(_) => {}
+            Err(err) => panic!("error creating database file {}", err),
+        }
+
+        let db = SqlitePoolOptions::new()
+            .connect(path.to_str().unwrap())
+            .await
+            .unwrap();
+
+        info!("Executing migrations...");
+        sqlx::migrate!("src/migrations").run(&db).await.unwrap();
+
+        sqlx::query(
+            "
+            PRAGMA busy_timeout = 60000;
+            PRAGMA journal_mode = WAL;
+            ",
+        )
+            .execute(&db)
+            .await
+            .unwrap();
+
+        db
     }
 }
