@@ -28,6 +28,7 @@ pub enum Commands {
     /// Tag an item.
     Tag {
         path: PathBuf,
+        #[arg(long, value_delimiter = ',', value_name = "TAG[,TAG...]")]
         tags: Option<Vec<String>>,
     },
 }

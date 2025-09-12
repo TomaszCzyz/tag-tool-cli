@@ -1,6 +1,7 @@
 mod cli;
 mod storage;
 mod tui;
+mod entities;
 
 use crate::cli::{Cli, Commands, TagsCommands};
 use crate::storage::Storage;
@@ -39,7 +40,8 @@ async fn main() -> Result<()> {
     match &cli.command {
         Commands::Tag { path, tags } => {
             if let Some(tags) = tags {
-                println!("{:?}", tags);
+                println!("tags args value: {:?}", tags);
+                storage.tag_file(path, tags).await;
                 Ok(())
             } else {
                 launch_tui(app)?
