@@ -1,9 +1,9 @@
 mod cli;
-mod tags_storage;
+mod storage;
 mod tui;
 
 use crate::cli::{Cli, Commands, TagsCommands};
-use crate::tags_storage::Storage;
+use crate::storage::Storage;
 use crate::tui::App;
 use clap::Parser;
 use color_eyre::{Report, Result};
@@ -21,6 +21,7 @@ static PROJECT_DIRS: Lazy<ProjectDirs> = Lazy::new(|| {
 #[tokio::main]
 async fn main() -> Result<()> {
     let startup_instant = Instant::now();
+
     // force early init of the project dirs to handle panic
     let _ = PROJECT_DIRS.data_dir();
 
@@ -45,9 +46,13 @@ async fn main() -> Result<()> {
             }
         }
         Commands::Tags { command } => Ok(match command {
-            TagsCommands::List => storage.list().iter().for_each(|s| println!("{}", s)),
-            TagsCommands::Add { name } => {
-                storage.add(Cow::Owned(name.to_string()));
+            TagsCommands::List => storage
+                .list_tags()
+                .await
+                .iter()
+                .for_each(|s| println!("{:}", s)),
+            TagsCommands::Add { names } => {
+                storage.add_tags(names).await;
             }
         }),
         Commands::Items { command } => Ok(match command {

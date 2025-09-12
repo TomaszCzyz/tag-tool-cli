@@ -1,4 +1,4 @@
-use crate::tags_storage::Storage;
+use crate::storage::Storage;
 use crossterm::event;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::{Line, Stylize};

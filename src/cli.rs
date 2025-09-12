@@ -37,7 +37,7 @@ pub enum TagsCommands {
     /// Lists all tags.
     List,
     /// Add a new tag
-    Add { name: String },
+    Add { names: String },
 }
 
 #[derive(Subcommand)]

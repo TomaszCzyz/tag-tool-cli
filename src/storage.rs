@@ -1,9 +1,10 @@
 use crate::PROJECT_DIRS;
 use log::info;
 use sqlx::sqlite::SqlitePoolOptions;
-use sqlx::{Pool, Sqlite};
+use sqlx::types::chrono::{DateTime, Utc};
+use sqlx::{FromRow, Pool, Sqlite};
 use std::borrow::Cow;
-use std::collections::HashSet;
+use std::fmt::{Display, Formatter};
 use std::fs;
 use std::fs::OpenOptions;
 
@@ -12,20 +13,42 @@ type Db = Pool<Sqlite>;
 #[derive(Debug)]
 pub struct Storage {
     db: Db,
-
-    /// All user defined tags.
-    tags: HashSet<Cow<'static, str>>,
 }
 
 impl Storage {
-    pub(crate) fn add(&self, p0: Cow<'static, str>) {
-        todo!()
+    pub(crate) async fn add_tags(&self, text: &str) {
+        let names = text.split(',').map(|s| s.trim());
+
+        for name in names {
+            sqlx::query("INSERT OR IGNORE INTO Tags (Text) VALUES ($1)")
+                .bind(name)
+                .execute(&self.db)
+                .await
+                .unwrap();
+        }
+    }
+}
+
+#[derive(FromRow, Debug)]
+#[sqlx(rename_all = "PascalCase")]
+pub struct Tag {
+    id: u64,
+    text: String,
+    created_at: DateTime<Utc>,
+}
+
+impl Display for Tag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.text)
     }
 }
 
 impl Storage {
-    pub(crate) fn list(&self) -> Vec<Cow<'static, str>> {
-        todo!()
+    pub(crate) async fn list_tags(&self) -> Vec<Tag> {
+        sqlx::query_as::<_, Tag>("SELECT Id, Text, CreatedAt FROM Tags")
+            .fetch_all(&self.db)
+            .await
+            .unwrap()
     }
 }
 
@@ -33,10 +56,7 @@ impl Storage {
     pub async fn initialize() -> Self {
         let db = Storage::setup_db().await;
 
-        Self {
-            db,
-            tags: HashSet::new(),
-        }
+        Self { db }
     }
 
     async fn setup_db() -> Db {
