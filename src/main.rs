@@ -1,17 +1,27 @@
 mod cli;
 mod entities;
+mod login;
 mod storage;
 mod tui;
 
 use crate::cli::{Cli, Commands, TagsCommands};
+use crate::login::LoginFlow;
 use crate::storage::Storage;
 use crate::tui::App;
+use base64;
+use base64::Engine;
+use base64::engine::general_purpose;
 use clap::Parser;
 use color_eyre::{Report, Result};
 use directories::ProjectDirs;
 use log::info;
 use once_cell::sync::Lazy;
-use std::borrow::Cow;
+use rand::rngs::OsRng;
+use rand::{Rng, RngCore};
+use serde::Deserialize;
+use sha2::{Digest, Sha256};
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
 use tokio::time::Instant;
 
 static PROJECT_DIRS: Lazy<ProjectDirs> = Lazy::new(|| {
@@ -45,6 +55,12 @@ async fn main() -> Result<()> {
             } else {
                 launch_tui(app)?
             }
+        }
+        Commands::Login => {
+            let flow = LoginFlow::new();
+            flow.run()?;
+
+            Ok(())
         }
         Commands::Tags { command } => Ok(match command {
             TagsCommands::List => storage

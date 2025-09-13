@@ -15,6 +15,8 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Tigger login flow.
+    Login,
     /// Manage user's tags.
     Tags {
         #[command(subcommand)]
