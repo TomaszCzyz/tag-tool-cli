@@ -1,8 +1,10 @@
 use base64::Engine;
 use base64::engine::general_purpose;
-use log::{error, info};
-use rand::RngCore;
+use color_eyre::eyre::{Context, eyre};
+use color_eyre::{Help, Report};
+use log::{error, info, warn};
 use rand::rngs::OsRng;
+use rand::{RngCore, TryRngCore};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::io;
@@ -112,24 +114,22 @@ impl LoginFlow {
             state,
         }
     }
-}
 
-impl LoginFlow {
-    pub(crate) fn run(&self) -> Result<(), std::io::Error> {
+    pub(crate) fn run(&self) -> color_eyre::Result<()> {
         let mut listener = OneShotHttpListener::start_new().unwrap();
 
         self.authorize_user();
 
-        let (code_opt, state_opt) = listener.accept().unwrap();
+        let (code_opt, state_opt) = listener.accept()?;
 
         let code = match (code_opt, state_opt) {
             (Some(code), Some(returned_state)) if returned_state == self.state => code,
             (Some(_), Some(_)) => {
-                eprintln!("State mismatch. Aborting.");
+                error!("State mismatch. Aborting.");
                 return Ok(());
             }
             _ => {
-                eprintln!("Missing authorization code or state. Aborting.");
+                error!("Missing authorization code or state. Aborting.");
                 return Ok(());
             }
         };
@@ -161,8 +161,8 @@ impl LoginFlow {
 
         info!("Opening browser for login...");
         if let Err(e) = open::that(&authorize_url) {
-            error!("Failed to open browser automatically: {e}");
-            error!("Please open this URL manually:\n{authorize_url}");
+            warn!("Failed to open browser automatically: {e}");
+            info!("Please open this URL manually:\n{authorize_url}");
         }
     }
 
@@ -221,14 +221,14 @@ impl LoginFlow {
 /// Generate PKCE code_verifier and code_challenge and state.
 fn generate_secrets() -> (String, String, String) {
     let mut code_verifier_bytes = [0u8; 32];
-    OsRng.fill_bytes(&mut code_verifier_bytes);
+    OsRng.try_fill_bytes(&mut code_verifier_bytes).unwrap();
     let code_verifier = general_purpose::URL_SAFE_NO_PAD.encode(code_verifier_bytes);
 
     let code_challenge_bytes = Sha256::digest(code_verifier.as_bytes());
     let code_challenge = general_purpose::URL_SAFE_NO_PAD.encode(code_challenge_bytes);
 
     let mut state_bytes = [0u8; 16];
-    OsRng.fill_bytes(&mut state_bytes);
+    OsRng.try_fill_bytes(&mut state_bytes).unwrap();
     let state = general_purpose::URL_SAFE_NO_PAD.encode(state_bytes);
 
     (code_verifier, code_challenge, state)

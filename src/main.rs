@@ -8,26 +8,15 @@ use crate::cli::{Cli, Commands, TagsCommands};
 use crate::login::LoginFlow;
 use crate::storage::Storage;
 use crate::tui::App;
-use base64;
-use base64::Engine;
-use base64::engine::general_purpose;
 use clap::Parser;
 use color_eyre::{Report, Result};
 use directories::ProjectDirs;
 use log::info;
 use once_cell::sync::Lazy;
-use rand::rngs::OsRng;
-use rand::{Rng, RngCore};
-use serde::Deserialize;
-use sha2::{Digest, Sha256};
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
 use tokio::time::Instant;
 
-static PROJECT_DIRS: Lazy<ProjectDirs> = Lazy::new(|| {
-    ProjectDirs::from("com", "example", "tag-tool-cli")
-        .expect("failed to determine project directories")
-});
+static PROJECT_DIRS: Lazy<ProjectDirs> =
+    Lazy::new(|| ProjectDirs::from("com", "example", "tag-tool-cli").expect("failed to determine project directories"));
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -37,7 +26,8 @@ async fn main() -> Result<()> {
     let _ = PROJECT_DIRS.data_dir();
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .format_timestamp_millis()
+        .format_timestamp(None)
+        .format_target(false)
         .init();
 
     let cli = Cli::parse();
@@ -63,11 +53,7 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Commands::Tags { command } => Ok(match command {
-            TagsCommands::List => storage
-                .list_tags()
-                .await
-                .iter()
-                .for_each(|s| println!("{:}", s)),
+            TagsCommands::List => storage.list_tags().await.iter().for_each(|s| println!("{:}", s)),
             TagsCommands::Add { names } => {
                 storage.add_tags(names).await;
             }
