@@ -106,8 +106,8 @@ impl LoginFlow {
         Self {
             domain: "https://dev-y5nz4h20ek8xt3ux.us.auth0.com".to_string(),
             redirect_uri: "http://127.0.0.1:38924/callback".to_string(),
-            scope: "openid profile email offline_access".to_string(),
-            audience: "https://dev-y5nz4h20ek8xt3ux.us.auth0.com/api/v2/".to_string(),
+            scope: "profile email".to_string(),
+            audience: "https://APP_NAME.azurewebsites.net/api/tag-tool-sync-az-function".to_string(),
             client_id: "JIRCkfkriTf21gGMo6BeQSdIUx5IeUdC".to_string(),
             code_verifier,
             code_challenge,
