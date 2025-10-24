@@ -3,6 +3,7 @@ mod entities;
 mod login;
 mod storage;
 mod tui;
+mod event_sourcing;
 
 use crate::cli::{Cli, Commands, TagsCommands};
 use crate::login::LoginFlow;

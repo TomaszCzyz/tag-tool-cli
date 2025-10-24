@@ -1,4 +1,3 @@
-use blake3::{Hash, OUT_LEN};
 use sqlx::types::chrono::{DateTime, Utc};
 use sqlx::{Database, Decode, FromRow};
 use std::fmt::{Display, Formatter};
