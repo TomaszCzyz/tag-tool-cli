@@ -41,6 +41,7 @@ impl Aggregate for Item {
     }
 }
 
+#[derive(Debug)]
 pub struct ItemState {
     pub path: String,
     pub hash: Box<[u8]>,

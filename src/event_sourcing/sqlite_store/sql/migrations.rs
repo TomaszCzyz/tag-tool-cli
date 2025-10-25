@@ -29,7 +29,6 @@ impl MigrationsHandler<Sqlite> for Migrations {
             statement!("migrations/01_create_table.sql", A),
             statement!("migrations/02_create_index.sql", A),
             statement!("migrations/03_create_unique_constraint.sql", A),
-            statement!("migrations/04_add_version.sql", A),
         ];
 
         for migration in migrations {

@@ -1,2 +1,2 @@
-mod item_aggregate;
-mod sqlite_store;
+pub mod item_aggregate;
+pub mod sqlite_store;

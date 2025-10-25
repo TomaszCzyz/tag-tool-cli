@@ -1,1 +1,3 @@
-DELETE FROM {} WHERE aggregate_id = $1
+DELETE
+FROM {}
+WHERE aggregate_id = ?

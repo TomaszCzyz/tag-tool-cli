@@ -1,8 +1,8 @@
-mod event_store;
-mod schema;
-mod persistable;
-mod sql;
-mod builder;
+pub mod event_store;
+pub mod schema;
+pub mod persistable;
+pub mod sql;
+pub mod builder;
 
 #[derive(thiserror::Error, Debug)]
 pub enum SqliteStoreError {

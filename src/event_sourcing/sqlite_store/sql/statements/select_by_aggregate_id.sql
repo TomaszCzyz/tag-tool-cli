@@ -1,1 +1,4 @@
-SELECT * FROM {} WHERE aggregate_id = $1 ORDER BY sequence_number ASC
+SELECT *
+FROM {}
+WHERE aggregate_id = ?
+ORDER BY sequence_number ASC
