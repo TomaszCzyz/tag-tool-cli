@@ -247,7 +247,6 @@ where
 
         let event_handlers = self.inner.event_handlers.read().await;
         for store_event in &store_events {
-            // NOTE: should this be parallelized?
             for event_handler in event_handlers.iter() {
                 let span = tracing::debug_span!(
                     "esrs.event_handler",

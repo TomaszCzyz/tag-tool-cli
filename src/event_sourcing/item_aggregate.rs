@@ -16,6 +16,7 @@ impl Aggregate for Item {
 
     fn handle_command(state: &Self::State, command: Self::Command) -> Result<Vec<Self::Event>, Self::Error> {
         match command {
+            ItemCommand::CreateItem { path, hash } => Ok(vec![ItemEvent::ItemCreated { path, hash }]),
             ItemCommand::Tag { tags } => Ok(vec![ItemEvent::Tagged { tags }]),
             ItemCommand::UnTag { tags } => Ok(vec![ItemEvent::UnTagged { tags }]),
         }
@@ -37,6 +38,12 @@ impl Aggregate for Item {
                 }
                 ItemState { tags: set, ..state }
             }
+            ItemEvent::ItemCreated { path, hash } => ItemState {
+                path,
+                hash,
+                created_at: Utc::now(),
+                tags: state.tags,
+            },
         }
     }
 }
@@ -55,20 +62,22 @@ impl Default for ItemState {
             path: "".to_string(),
             hash: Box::new([]),
             tags: HashSet::new(),
-            created_at: Default::default(),
+            created_at: Utc::now(),
         }
     }
 }
 
 pub enum ItemCommand {
-    Tag { tags: Vec<String> },
-    UnTag { tags: Vec<String> },
+    CreateItem { path: String, hash: Box<[u8]> },
+    Tag { tags: HashSet<String> },
+    UnTag { tags: HashSet<String> },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum ItemEvent {
-    Tagged { tags: Vec<String> },
-    UnTagged { tags: Vec<String> },
+    ItemCreated { path: String, hash: Box<[u8]> },
+    Tagged { tags: HashSet<String> },
+    UnTagged { tags: HashSet<String> },
 }
 
 #[derive(Debug, Error)]
