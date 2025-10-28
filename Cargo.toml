@@ -39,6 +39,6 @@ directories = "6.0.0"
 same-file = "1.0.6"
 base64 = "0.22.1"
 sha2 = "0.10.9"
-blake3 = { version = "1.8.2", features = ["mmap"] }
+blake3 = { version = "1.8.2", features = ["mmap", "serde"] }
 thiserror = "2.0.17"
 dashmap = "6.1.0"

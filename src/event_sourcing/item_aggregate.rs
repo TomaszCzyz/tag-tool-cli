@@ -1,8 +1,9 @@
+use blake3::Hash;
 use esrs::Aggregate;
 use serde::{Deserialize, Serialize};
 use sqlx::types::chrono::{DateTime, Utc};
 use std::collections::HashSet;
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use thiserror::Error;
 
 pub struct Item;
@@ -24,6 +25,12 @@ impl Aggregate for Item {
 
     fn apply_event(state: Self::State, payload: Self::Event) -> Self::State {
         match payload {
+            ItemEvent::ItemCreated { path, hash } => ItemState {
+                path,
+                hash,
+                created_at: Utc::now(),
+                tags: state.tags,
+            },
             ItemEvent::Tagged { tags } => {
                 let mut set = state.tags.clone();
                 for tag in tags {
@@ -38,12 +45,6 @@ impl Aggregate for Item {
                 }
                 ItemState { tags: set, ..state }
             }
-            ItemEvent::ItemCreated { path, hash } => ItemState {
-                path,
-                hash,
-                created_at: Utc::now(),
-                tags: state.tags,
-            },
         }
     }
 }
@@ -51,7 +52,7 @@ impl Aggregate for Item {
 #[derive(Debug)]
 pub struct ItemState {
     pub path: String,
-    pub hash: Box<[u8]>,
+    pub hash: Hash,
     pub tags: HashSet<String>,
     pub created_at: DateTime<Utc>,
 }
@@ -60,7 +61,7 @@ impl Default for ItemState {
     fn default() -> Self {
         Self {
             path: "".to_string(),
-            hash: Box::new([]),
+            hash: Hash::from([0; 32]),
             tags: HashSet::new(),
             created_at: Utc::now(),
         }
@@ -68,14 +69,14 @@ impl Default for ItemState {
 }
 
 pub enum ItemCommand {
-    CreateItem { path: String, hash: Box<[u8]> },
+    CreateItem { path: String, hash: Hash },
     Tag { tags: HashSet<String> },
     UnTag { tags: HashSet<String> },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum ItemEvent {
-    ItemCreated { path: String, hash: Box<[u8]> },
+    ItemCreated { path: String, hash: Hash },
     Tagged { tags: HashSet<String> },
     UnTagged { tags: HashSet<String> },
 }

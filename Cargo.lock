@@ -195,6 +195,7 @@ dependencies = [
  "cfg-if",
  "constant_time_eq",
  "memmap2",
+ "serde",
 ]
 
 [[package]]

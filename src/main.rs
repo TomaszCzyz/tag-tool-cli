@@ -9,6 +9,7 @@ mod tui;
 
 use crate::cli::{Cli, Commands, TagsCommands};
 use crate::event_sourcing::item_aggregate::{Item, ItemCommand, ItemEvent, ItemState};
+use crate::event_sourcing::item_event_handler::ItemEventHandler;
 use crate::event_sourcing::item_view::ItemView;
 use crate::event_sourcing::sqlite_store::builder::SqliteStoreBuilder;
 use crate::event_sourcing::sqlite_store::event_store::SqliteStore;
@@ -17,6 +18,7 @@ use crate::event_sourcing::tag_items_view::TagItemsView;
 use crate::login::LoginFlow;
 use crate::storage::Storage;
 use crate::tui::App;
+use blake3::Hash;
 use clap::Parser;
 use color_eyre::{Report, Result};
 use directories::ProjectDirs;
@@ -30,6 +32,7 @@ use sqlx::{Pool, Sqlite};
 use std::collections::HashSet;
 use std::fs;
 use std::fs::OpenOptions;
+use std::path::PathBuf;
 use std::str::FromStr;
 use tokio::time::Instant;
 use uuid::Uuid;
@@ -56,22 +59,23 @@ async fn main() -> Result<()> {
     let item_view = ItemView::new(&db).await;
     let tag_items_view = TagItemsView::new(&db).await;
 
+    let item_event_handler = ItemEventHandler {
+        pool: db.clone(),
+        view: item_view.clone(),
+    };
+
     let tag_items_event_handler = TagItemsEventHandler {
         pool: db.clone(),
         view: tag_items_view.clone(),
     };
 
     let store: SqliteStore<Item> = SqliteStoreBuilder::new(db.clone())
+        .add_event_handler(item_event_handler)
         .add_event_handler(tag_items_event_handler)
         .try_build()
         .await?;
 
     let manager: AggregateManager<SqliteStore<Item>> = AggregateManager::new(store);
-
-    let item_aggregate_id: Uuid = Uuid::from_str("040cadd3-1333-412d-8571-265b0188713b")?;
-    // let mut aggregate_state: AggregateState<ItemState> = AggregateState::new();
-
-    let aggregate_state = manager.load(item_aggregate_id).await?.unwrap();
 
     // let storage: &'static Storage = Box::leak(Box::new(Storage::initialize().await));
     // let app = App::with_storage(&storage);
@@ -81,8 +85,32 @@ async fn main() -> Result<()> {
     match &cli.command {
         Commands::Tag { path, tags: tags_option } => {
             if let Some(tags) = tags_option {
-                let mut input_tags = HashSet::from_iter(tags.iter().cloned());
+                let hash = hash_file(path);
+                let option = item_view.find_by_hash(&hash, &db).await?;
+
+                let aggregate_state = if let Some(item) = option {
+                    info!("Found item: {:?}", item);
+                    manager.load(item.id).await?.unwrap()
+                } else {
+                    info!("Creating new item: {:?}", path);
+                    let new_aggregate_id = Uuid::new_v4();
+                    let aggregate_state = AggregateState::with_id(new_aggregate_id);
+                    manager
+                        .handle_command(
+                            aggregate_state,
+                            ItemCommand::CreateItem {
+                                hash,
+                                path: path.to_string_lossy().to_string(),
+                            },
+                        )
+                        .await??;
+
+                    // TODO: can I do it with extra database connection?
+                    manager.load(new_aggregate_id).await?.unwrap()
+                };
+
                 let item = aggregate_state.inner();
+                let mut input_tags = HashSet::from_iter(tags.iter().cloned());
                 input_tags.retain(|t| !item.tags.contains(t));
 
                 if input_tags.is_empty() {
@@ -110,7 +138,7 @@ async fn main() -> Result<()> {
             TagsCommands::List => {
                 // storage.list_tags().await.iter().for_each(|s| println!("{:}", s))
             }
-            TagsCommands::Add { names } => {
+            TagsCommands::Add { .. } => {
                 // storage.add_tags(names).await;
             }
         }),
@@ -118,6 +146,16 @@ async fn main() -> Result<()> {
             _ => {}
         }),
     }
+}
+
+fn hash_file(path: &PathBuf) -> Hash {
+    let mut hasher = blake3::Hasher::new();
+    match hasher.update_mmap(path) {
+        Ok(_) => {}
+        Err(e) => panic!("Failed to hash file: {}", e),
+    }
+    let hash = hasher.finalize();
+    hash
 }
 
 fn launch_tui(app: App) -> Result<Result<()>, Report> {
