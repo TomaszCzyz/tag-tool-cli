@@ -2,15 +2,23 @@ use blake3::Hash;
 use log::warn;
 use sqlx::{Executor, Pool, Sqlite, query_as};
 use std::collections::HashSet;
+use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use uuid::Uuid;
 
+#[allow(unused)]
 #[derive(sqlx::FromRow, Debug)]
 pub struct ItemViewRow {
     pub id: Uuid,
     pub path: String,
     pub hash: Box<[u8]>,
     pub tags: String,
+}
+
+impl Display for ItemViewRow {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.id, self.path, self.tags)
+    }
 }
 
 #[derive(Clone)]

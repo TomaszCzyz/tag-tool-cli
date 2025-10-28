@@ -15,7 +15,7 @@ impl Aggregate for Item {
     type Event = ItemEvent;
     type Error = ItemError;
 
-    fn handle_command(state: &Self::State, command: Self::Command) -> Result<Vec<Self::Event>, Self::Error> {
+    fn handle_command(_state: &Self::State, command: Self::Command) -> Result<Vec<Self::Event>, Self::Error> {
         match command {
             ItemCommand::CreateItem { path, hash } => Ok(vec![ItemEvent::ItemCreated { path, hash }]),
             ItemCommand::Tag { tags } => Ok(vec![ItemEvent::Tagged { tags }]),

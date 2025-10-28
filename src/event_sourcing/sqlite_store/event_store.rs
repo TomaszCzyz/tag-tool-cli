@@ -12,7 +12,6 @@ use esrs::types::SequenceNumber;
 use esrs::{Aggregate, AggregateState};
 use futures::StreamExt;
 use futures::stream::BoxStream;
-use sqlx::sqlite::SqliteError;
 use sqlx::types::Json;
 use sqlx::types::chrono::{DateTime, Utc};
 use sqlx::{Executor, Pool, Sqlite, SqliteConnection, Transaction};
@@ -47,16 +46,12 @@ where
     A::Event: Send + Sync,
     S: Schema<A::Event> + Persistable + Send + Sync,
 {
-    /// Returns the name of the event store table
-    pub fn table_name(&self) -> &str {
-        self.inner.statements.table_name()
-    }
-
     /// Safely add an event handler to [`Sqlite`]. Since it appends an event handler to a [`RwLock`]
     /// this function needs to be `async`.
     ///
     /// This is mostly used while there's the need to have an event handler that tries to apply a command
     /// on the same aggregate (implementing a saga pattern with event sourcing).
+    #[allow(dead_code)]
     pub async fn add_event_handler(&self, event_handler: impl EventHandler<A> + Send + 'static) {
         let mut guard = self.inner.event_handlers.write().await;
 

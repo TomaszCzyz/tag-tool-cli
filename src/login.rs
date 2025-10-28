@@ -1,16 +1,15 @@
-use base64::Engine;
 use base64::engine::general_purpose;
-use color_eyre::eyre::{Context, eyre};
-use color_eyre::{Help, Report};
+use base64::Engine;
 use log::{error, info, warn};
 use rand::rngs::OsRng;
-use rand::{RngCore, TryRngCore};
+use rand::TryRngCore;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::io;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
+#[allow(unused)]
 #[derive(Deserialize)]
 struct TokenSuccess {
     access_token: String,

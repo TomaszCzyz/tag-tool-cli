@@ -1,14 +1,13 @@
+#![allow(dead_code)]
 extern crate core;
 
 mod cli;
-mod entities;
 mod event_sourcing;
 mod login;
-mod storage;
 mod tui;
 
-use crate::cli::{Cli, Commands, TagsCommands};
-use crate::event_sourcing::item_aggregate::{Item, ItemCommand, ItemEvent, ItemState};
+use crate::cli::{Cli, Commands, ItemsCommands, TagsCommands};
+use crate::event_sourcing::item_aggregate::{Item, ItemCommand, ItemEvent};
 use crate::event_sourcing::item_event_handler::ItemEventHandler;
 use crate::event_sourcing::item_view::ItemView;
 use crate::event_sourcing::sqlite_store::builder::SqliteStoreBuilder;
@@ -16,7 +15,6 @@ use crate::event_sourcing::sqlite_store::event_store::SqliteStore;
 use crate::event_sourcing::tag_items_event_handler::TagItemsEventHandler;
 use crate::event_sourcing::tag_items_view::TagItemsView;
 use crate::login::LoginFlow;
-use crate::storage::Storage;
 use crate::tui::App;
 use blake3::Hash;
 use clap::Parser;
@@ -24,7 +22,6 @@ use color_eyre::{Report, Result};
 use directories::ProjectDirs;
 use esrs::AggregateState;
 use esrs::manager::AggregateManager;
-use esrs::store::EventStore;
 use log::info;
 use once_cell::sync::Lazy;
 use sqlx::sqlite::SqlitePoolOptions;
@@ -33,7 +30,6 @@ use std::collections::HashSet;
 use std::fs;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
-use std::str::FromStr;
 use tokio::time::Instant;
 use uuid::Uuid;
 
@@ -52,66 +48,32 @@ async fn main() -> Result<()> {
         .format_target(false)
         .init();
 
-    let cli = Cli::parse();
-
     let db = setup_db().await;
 
     let item_view = ItemView::new(&db).await;
     let tag_items_view = TagItemsView::new(&db).await;
-
-    let item_event_handler = ItemEventHandler {
-        pool: db.clone(),
-        view: item_view.clone(),
-    };
-
-    let tag_items_event_handler = TagItemsEventHandler {
-        pool: db.clone(),
-        view: tag_items_view.clone(),
-    };
-
-    let store: SqliteStore<Item> = SqliteStoreBuilder::new(db.clone())
-        .add_event_handler(item_event_handler)
-        .add_event_handler(tag_items_event_handler)
-        .try_build()
-        .await?;
-
-    let manager: AggregateManager<SqliteStore<Item>> = AggregateManager::new(store);
-
-    // let storage: &'static Storage = Box::leak(Box::new(Storage::initialize().await));
-    // let app = App::with_storage(&storage);
+    let manager = setup_item_store_manager(&db, &item_view, &tag_items_view).await?;
 
     info!("startup time: {:?}", startup_instant.elapsed());
 
+    let cli = Cli::parse();
     match &cli.command {
         Commands::Tag { path, tags: tags_option } => {
             if let Some(tags) = tags_option {
                 let hash = hash_file(path);
-                let option = item_view.find_by_hash(&hash, &db).await?;
-
-                let aggregate_state = if let Some(item) = option {
-                    info!("Found item: {:?}", item);
+                let aggregate_state = if let Some(item) = item_view.find_by_hash(&hash, &db).await? {
+                    info!("Found item: {:}", item);
                     manager.load(item.id).await?.unwrap()
                 } else {
                     info!("Creating new item: {:?}", path);
-                    let new_aggregate_id = Uuid::new_v4();
-                    let aggregate_state = AggregateState::with_id(new_aggregate_id);
-                    manager
-                        .handle_command(
-                            aggregate_state,
-                            ItemCommand::CreateItem {
-                                hash,
-                                path: path.to_string_lossy().to_string(),
-                            },
-                        )
-                        .await??;
+                    let new_aggregate_id = create_item(&manager, path, hash).await?;
 
                     // TODO: can I do it with extra database connection?
                     manager.load(new_aggregate_id).await?.unwrap()
                 };
 
-                let item = aggregate_state.inner();
                 let mut input_tags = HashSet::from_iter(tags.iter().cloned());
-                input_tags.retain(|t| !item.tags.contains(t));
+                input_tags.retain(|t| !aggregate_state.inner().tags.contains(t));
 
                 if input_tags.is_empty() {
                     info!("The item already has tags: {:?}.", tags);
@@ -136,16 +98,57 @@ async fn main() -> Result<()> {
         }
         Commands::Tags { command } => Ok(match command {
             TagsCommands::List => {
-                // storage.list_tags().await.iter().for_each(|s| println!("{:}", s))
-            }
-            TagsCommands::Add { .. } => {
-                // storage.add_tags(names).await;
+                for tag in tag_items_view.get_all_tags(&db).await? {
+                    println!("{:}", tag);
+                }
             }
         }),
         Commands::Items { command } => Ok(match command {
-            _ => {}
+            ItemsCommands::Search => {
+                launch_tui(App::new())??;
+            }
         }),
     }
+}
+
+async fn setup_item_store_manager(
+    db: &Pool<Sqlite>,
+    item_view: &ItemView,
+    tag_items_view: &TagItemsView,
+) -> Result<AggregateManager<SqliteStore<Item, ItemEvent>>, Report> {
+    let item_event_handler = ItemEventHandler {
+        pool: db.clone(),
+        view: item_view.clone(),
+    };
+
+    let tag_items_event_handler = TagItemsEventHandler {
+        pool: db.clone(),
+        view: tag_items_view.clone(),
+    };
+
+    let store: SqliteStore<Item> = SqliteStoreBuilder::new(db.clone())
+        .add_event_handler(item_event_handler)
+        .add_event_handler(tag_items_event_handler)
+        .try_build()
+        .await?;
+
+    Ok(AggregateManager::new(store))
+}
+
+async fn create_item(manager: &AggregateManager<SqliteStore<Item, ItemEvent>>, path: &PathBuf, hash: Hash) -> Result<Uuid, Report> {
+    let new_aggregate_id = Uuid::new_v4();
+    let aggregate_state = AggregateState::with_id(new_aggregate_id);
+    manager
+        .handle_command(
+            aggregate_state,
+            ItemCommand::CreateItem {
+                hash,
+                path: path.to_string_lossy().to_string(),
+            },
+        )
+        .await??;
+
+    Ok(new_aggregate_id)
 }
 
 fn hash_file(path: &PathBuf) -> Hash {

@@ -8,7 +8,6 @@ where
     fn new<A>() -> Self
     where
         A: Aggregate;
-    fn table_name(&self) -> &str;
     fn by_aggregate_id(&self) -> &str;
     fn select_all(&self) -> &str;
     fn insert(&self) -> &str;
@@ -17,7 +16,6 @@ where
 
 #[derive(Clone, Debug)]
 pub struct Statements {
-    table_name: String,
     select_by_aggregate_id: String,
     select_all: String,
     insert: String,
@@ -32,16 +30,11 @@ impl StatementsHandler<Sqlite> for Statements {
         let table_name: String = format!("{}_events", A::NAME);
 
         Self {
-            table_name: table_name.clone(),
             select_by_aggregate_id: format!(include_str!("statements/select_by_aggregate_id.sql"), table_name),
             select_all: format!(include_str!("statements/select_all.sql"), table_name),
             insert: format!(include_str!("statements/insert.sql"), table_name),
             delete_by_aggregate_id: format!(include_str!("statements/delete_by_aggregate_id.sql"), table_name),
         }
-    }
-
-    fn table_name(&self) -> &str {
-        &self.table_name
     }
 
     fn by_aggregate_id(&self) -> &str {
