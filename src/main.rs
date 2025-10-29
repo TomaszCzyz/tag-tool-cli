@@ -19,11 +19,12 @@ use crate::tui::App;
 use blake3::Hash;
 use clap::Parser;
 use color_eyre::{Report, Result};
-use directories::ProjectDirs;
+use directories::{ProjectDirs, UserDirs};
 use esrs::AggregateState;
 use esrs::manager::AggregateManager;
 use log::info;
 use once_cell::sync::Lazy;
+use same_file::is_same_file;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Pool, Sqlite};
 use std::collections::HashSet;
@@ -31,10 +32,12 @@ use std::fs;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
 use tokio::time::Instant;
+use tracing::error;
 use uuid::Uuid;
 
 static PROJECT_DIRS: Lazy<ProjectDirs> =
     Lazy::new(|| ProjectDirs::from("com", "example", "tag-tool-cli").expect("failed to determine project directories"));
+static USER_DIRS: Lazy<UserDirs> = Lazy::new(|| UserDirs::new().expect("failed to determine user directories"));
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -58,31 +61,48 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     match &cli.command {
-        Commands::Tag { path, tags: tags_option } => {
+        Commands::Tag {
+            path,
+            tags: tags_option,
+            move_to_common_storage,
+        } => {
             if let Some(tags) = tags_option {
                 let hash = hash_file(path);
-                let aggregate_state = if let Some(item) = item_view.find_by_hash(&hash, &db).await? {
+                let aggregate_id = if let Some(item) = item_view.find_by_hash(&hash, &db).await? {
                     info!("Found item: {:}", item);
-                    manager.load(item.id).await?.unwrap()
+                    // TODO: validate case, when paths are the same, but contents are different
+                    if let Ok(is_same) = is_same_file(&item.path, path) {
+                        if !is_same {
+                            panic!("File with the same content is already tracked")
+                        }
+                    };
+                    item.id
                 } else {
                     info!("Creating new item: {:?}", path);
-                    let new_aggregate_id = create_item(&manager, path, hash).await?;
-
-                    // TODO: can I do it with extra database connection?
-                    manager.load(new_aggregate_id).await?.unwrap()
+                    create_item(&manager, path, hash).await?
                 };
+                let aggregate_state = manager.load(aggregate_id).await?.unwrap();
 
                 let mut input_tags = HashSet::from_iter(tags.iter().cloned());
                 input_tags.retain(|t| !aggregate_state.inner().tags.contains(t));
 
                 if input_tags.is_empty() {
                     info!("The item already has tags: {:?}.", tags);
+
+                    if *move_to_common_storage {
+                        move_item_to_common_storage(aggregate_id, manager).await?;
+                    }
+
                     return Ok(());
                 }
 
                 manager
                     .handle_command(aggregate_state, ItemCommand::Tag { tags: input_tags })
                     .await??;
+
+                if *move_to_common_storage {
+                    move_item_to_common_storage(aggregate_id, manager).await?;
+                }
 
                 Ok(())
             } else {
@@ -109,6 +129,41 @@ async fn main() -> Result<()> {
             }
         }),
     }
+}
+
+async fn move_item_to_common_storage(aggregate_id: Uuid, manager: AggregateManager<SqliteStore<Item, ItemEvent>>) -> Result<(), Report> {
+    info!("Moving item to common storage: {:?}", aggregate_id);
+    let aggregate_state = manager.load(aggregate_id).await?.unwrap();
+    if let Some(doc_path) = USER_DIRS.document_dir() {
+        let item_path = PathBuf::from(&aggregate_state.inner().path);
+        let original_file_name = item_path
+            .file_name()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "source path has no file name"))?;
+
+        let mut dest_path_buf = doc_path.to_path_buf();
+        dest_path_buf.push("tag-tool");
+        dest_path_buf.push("common-storage");
+        dest_path_buf.push(original_file_name);
+
+        fs::create_dir_all(&dest_path_buf).expect("Failed to create directory");
+
+        match fs::rename(item_path, &dest_path_buf) {
+            Ok(_) => {
+                manager
+                    .handle_command(
+                        aggregate_state,
+                        ItemCommand::Move {
+                            new_path: dest_path_buf.to_string_lossy().to_string(),
+                        },
+                    )
+                    .await??;
+            }
+            Err(e) => {
+                error!("Failed to move file to common storage: {:?}, error: {}", dest_path_buf, e);
+            }
+        }
+    }
+    Ok(())
 }
 
 async fn setup_item_store_manager(

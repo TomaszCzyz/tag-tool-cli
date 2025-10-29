@@ -157,6 +157,24 @@ impl ItemView {
         Ok(())
     }
 
+    pub async fn update_path(
+        &self,
+        id: Uuid,
+        new_path: String,
+        executor: impl Executor<'_, Database = Sqlite> + Copy,
+    ) -> Result<(), sqlx::Error> {
+        let new_path_canonical = PathBuf::from(new_path).canonicalize()?;
+        let new_path_str = new_path_canonical.to_string_lossy().to_string();
+
+        let update_sql = format!("UPDATE {} SET path = ? WHERE id = ?", Self::TABLE_NAME);
+        sqlx::query(&update_sql)
+            .bind(&new_path_str)
+            .bind(id)
+            .execute(executor)
+            .await
+            .map(|_| ())
+    }
+
     pub async fn delete(&self, id: Uuid, executor: impl Executor<'_, Database = Sqlite>) -> Result<(), sqlx::Error> {
         let query = format!("DELETE FROM {0} WHERE id = ?;", Self::TABLE_NAME);
 

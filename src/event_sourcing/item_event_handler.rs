@@ -26,6 +26,11 @@ impl EventHandler<Item> for ItemEventHandler {
             }
             ItemEvent::Tagged { tags } => self.view.add_tag(event.aggregate_id, tags, &self.pool).await.unwrap(),
             ItemEvent::UnTagged { .. } => (),
+            ItemEvent::Moved { new_path } => self
+                .view
+                .update_path(event.aggregate_id, new_path.clone(), &self.pool)
+                .await
+                .unwrap(),
         }
     }
 

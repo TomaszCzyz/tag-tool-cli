@@ -20,6 +20,7 @@ impl Aggregate for Item {
             ItemCommand::CreateItem { path, hash } => Ok(vec![ItemEvent::ItemCreated { path, hash }]),
             ItemCommand::Tag { tags } => Ok(vec![ItemEvent::Tagged { tags }]),
             ItemCommand::UnTag { tags } => Ok(vec![ItemEvent::UnTagged { tags }]),
+            ItemCommand::Move { new_path } => Ok(vec![ItemEvent::Moved { new_path }]),
         }
     }
 
@@ -45,6 +46,7 @@ impl Aggregate for Item {
                 }
                 ItemState { tags: set, ..state }
             }
+            ItemEvent::Moved { new_path } => ItemState { path: new_path, ..state },
         }
     }
 }
@@ -72,6 +74,7 @@ pub enum ItemCommand {
     CreateItem { path: String, hash: Hash },
     Tag { tags: HashSet<String> },
     UnTag { tags: HashSet<String> },
+    Move { new_path: String },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -79,6 +82,7 @@ pub enum ItemEvent {
     ItemCreated { path: String, hash: Hash },
     Tagged { tags: HashSet<String> },
     UnTagged { tags: HashSet<String> },
+    Moved { new_path: String },
 }
 
 #[derive(Debug, Error)]

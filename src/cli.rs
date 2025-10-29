@@ -2,12 +2,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(
-    version,
-    propagate_version = true,
-    subcommand_required = true,
-    arg_required_else_help = true
-)]
+#[command(version, propagate_version = true, subcommand_required = true, arg_required_else_help = true)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -32,6 +27,8 @@ pub enum Commands {
         path: PathBuf,
         #[arg(long, value_delimiter = ',', value_name = "TAG[,TAG...]")]
         tags: Option<Vec<String>>,
+        #[arg(long = "move-to-common-storage", short = 'm', default_value_t = false)]
+        move_to_common_storage: bool,
     },
 }
 
