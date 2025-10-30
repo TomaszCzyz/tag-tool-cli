@@ -19,6 +19,7 @@ use crate::tui::App;
 use blake3::Hash;
 use clap::Parser;
 use color_eyre::{Report, Result};
+use crossterm::event::{Event, KeyCode, KeyEvent, read};
 use directories::{ProjectDirs, UserDirs};
 use esrs::AggregateState;
 use esrs::manager::AggregateManager;
@@ -66,6 +67,11 @@ async fn main() -> Result<()> {
             tags: tags_option,
             move_to_common_storage,
         } => {
+            if !path.exists() {
+                info!("File does not exist: {:?}", path);
+                return Ok(());
+            }
+
             if let Some(tags) = tags_option {
                 let hash = hash_file(path);
                 let aggregate_id = if let Some(item) = item_view.find_by_hash(&hash, &db).await? {
@@ -135,7 +141,7 @@ async fn move_item_to_common_storage(aggregate_id: Uuid, manager: AggregateManag
     info!("Moving item to common storage: {:?}", aggregate_id);
     let aggregate_state = manager.load(aggregate_id).await?.unwrap();
     if let Some(doc_path) = USER_DIRS.document_dir() {
-        let item_path = PathBuf::from(&aggregate_state.inner().path);
+        let item_path = PathBuf::from(&aggregate_state.inner().path).canonicalize()?;
         let original_file_name = item_path
             .file_name()
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "source path has no file name"))?;
@@ -143,9 +149,25 @@ async fn move_item_to_common_storage(aggregate_id: Uuid, manager: AggregateManag
         let mut dest_path_buf = doc_path.to_path_buf();
         dest_path_buf.push("tag-tool");
         dest_path_buf.push("common-storage");
-        dest_path_buf.push(original_file_name);
 
         fs::create_dir_all(&dest_path_buf).expect("Failed to create directory");
+
+        dest_path_buf.push(original_file_name);
+
+        if dest_path_buf.exists() {
+            println!("File already exists in common storage: {:?}", dest_path_buf);
+            println!("Do you want to override it? [y/N]");
+
+            match read()? {
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('y'), ..
+                }) => (),
+                Event::Key(KeyEvent {
+                    code: KeyCode::Char('Y'), ..
+                }) => (),
+                _ => return Ok(()),
+            }
+        }
 
         match fs::rename(item_path, &dest_path_buf) {
             Ok(_) => {
