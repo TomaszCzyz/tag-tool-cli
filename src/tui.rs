@@ -1,4 +1,3 @@
-use color_eyre::owo_colors::OwoColorize;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::DefaultTerminal;
@@ -20,6 +19,7 @@ pub struct App {
     messages: Vec<String>,
 
     tags: Vec<String>,
+    top_tag_suggestion: Option<String>,
 
     matcher: Box<dyn FuzzyMatcher>,
 }
@@ -27,7 +27,7 @@ pub struct App {
 impl App {
     /// Construct a new instance of [`App`].
     pub fn new() -> Self {
-        let tags = std::fs::read_to_string("test-tags.txt")
+        let tags: Vec<String> = std::fs::read_to_string("test-tags.txt")
             .map(|content| {
                 content
                     .replace('\n', "")
@@ -41,9 +41,10 @@ impl App {
         Self {
             running: false,
             matcher: Box::new(SkimMatcherV2::default()),
-            tags,
             input: Input::default(),
             messages: vec![],
+            tags: tags.iter().cloned().collect(),
+            top_tag_suggestion: None,
         }
     }
 
@@ -55,10 +56,18 @@ impl App {
             let event = event::read()?;
             if let Event::Key(key) = event {
                 match key.code {
-                    KeyCode::Enter => (),
+                    KeyCode::Enter => {
+                        if let Some(tag) = self.top_tag_suggestion.take() {
+                            let current_value = self.input.value();
+                            let new_value = format!("{} {}", current_value, tag);
+                            self.input = Input::from(new_value);
+                        }
+                        ()
+                    }
                     KeyCode::Esc => return Ok(()),
                     _ => {
                         self.input.handle_event(&event);
+                        // generate suggestions
                     }
                 }
             }
@@ -69,7 +78,7 @@ impl App {
         self.messages.push(self.input.value_and_reset());
     }
 
-    fn render(&self, frame: &mut Frame) {
+    fn render(&mut self, frame: &mut Frame) {
         let [header_area, input_area, messages_area] =
             Layout::vertical([Constraint::Length(1), Constraint::Length(3), Constraint::Min(1)]).areas(frame.area());
 
@@ -78,7 +87,7 @@ impl App {
         self.render_messages(frame, messages_area);
     }
 
-    fn render_tags_suggestions(&self, frame: &mut Frame, area: Rect) {
+    fn render_tags_suggestions(&mut self, frame: &mut Frame, area: Rect) {
         let mut score_tags = self
             .tags
             .iter()
@@ -89,6 +98,10 @@ impl App {
             .collect::<Vec<_>>();
 
         score_tags.sort_unstable_by_key(|((s, _), _)| 100 - *s);
+
+        if score_tags.len() > 0 {
+            self.top_tag_suggestion = Some(score_tags[0].1.to_string());
+        }
 
         // TODO: calculate number based on number of chars and frame width
         let count = 20;
