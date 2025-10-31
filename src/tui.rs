@@ -1,7 +1,8 @@
 use crossterm::event;
 use crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::prelude::{Line, Stylize};
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::{Block, Borders, List, ListItem, Paragraph};
 use ratatui::{DefaultTerminal, Frame};
 
 /// The main application which holds the state and logic of the application.
@@ -34,13 +35,35 @@ impl App {
     /// - <https://docs.rs/ratatui/latest/ratatui/widgets/index.html>
     /// - <https://github.com/ratatui/ratatui/tree/main/ratatui-widgets/examples>
     fn render(&mut self, frame: &mut Frame) {
-        let title = Line::from("Ratatui Simple Template").bold().blue().centered();
+        let size = frame.area();
 
-        let text = "Hello, Ratatui!\n\n\
-            Created using https://github.com/ratatui/templates\n\
-            Press `Esc`, `Ctrl-C` or `q` to stop running.";
+        // Create a small region near the top (like fzf)
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Length(3),  // Input line
+                Constraint::Length(10), // Suggestion list
+                Constraint::Min(0),     // Remaining area (empty)
+            ])
+            .split(size);
 
-        frame.render_widget(Paragraph::new(text).block(Block::bordered().title(title)).centered(), frame.area())
+        let items = vec![
+            "src",
+            "src/migrations",
+            "src/event_sourcing",
+            "src/event_sourcing/sqlite_store/sql/statements",
+            "target/debug/incremental/tagtool",
+        ];
+
+        // Draw input field
+        let input = Paragraph::new("query.as_ref()").block(Block::default().borders(Borders::ALL).title("Search"));
+        frame.render_widget(input, chunks[0]);
+
+        // Draw fuzzy results (here: static)
+        let list_items: Vec<ListItem> = items.iter().map(|i| ListItem::new(i.to_string())).collect();
+        let list = List::new(list_items).block(Block::default().borders(Borders::ALL).title("Results"));
+
+        frame.render_widget(list, chunks[1]);
     }
 
     /// Reads the crossterm events and updates the state of [`App`].
