@@ -3,22 +3,22 @@ use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event;
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+use ratatui::crossterm::event::KeyCode::{Backspace, Char, Delete, End, Home, Left, Right, Tab};
+use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use ratatui::prelude::*;
 use std::time::Duration;
 use tui_input::Input;
-use tui_input::backend::crossterm::EventHandler;
+use tui_input::InputRequest::{
+    DeleteNextChar, DeletePrevChar, DeletePrevWord, DeleteTillEnd, GoToEnd, GoToNextChar, GoToNextWord, GoToPrevChar, GoToPrevWord,
+    GoToStart, InsertChar,
+};
 
 /// The main application which holds the state and logic of the application.
 pub struct App {
-    /// Current value of the input box
-    input: Input,
+    model: Model,
+    view_renderer: ViewRenderer,
 
     matcher: Box<dyn FuzzyMatcher>,
-
-    model: Model,
-
-    view_renderer: ViewRenderer,
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -34,7 +34,7 @@ pub struct Model {
     editing_mode: EditingMode,
 
     /// Only currently typed text, i.e. part of a single tag
-    input: String,
+    pub(crate) input: Input,
     /// Accepted tags
     input_tags: Vec<String>,
 
@@ -46,8 +46,6 @@ pub struct Model {
 }
 
 enum Message {
-    //... various inputs or actions that your app cares about
-    // e.g., ButtonPressed, TextEntered, etc.
     InputKeyEventEntered(KeyEvent),
     AcceptTopSuggestion,
     Exit,
@@ -76,7 +74,6 @@ impl App {
 
         Self {
             matcher: Box::new(SkimMatcherV2::default()),
-            input: Input::default(),
             model: Model {
                 running_state: RunningState::Running,
                 editing_mode: EditingMode::Typing,
@@ -85,7 +82,7 @@ impl App {
                 input_tags: vec![],
                 top_tag_suggestion: None,
                 items: vec![],
-                input: String::new(),
+                input: Input::default(),
             },
             view_renderer: ViewRenderer::default(),
         }
@@ -129,7 +126,7 @@ impl App {
                 if let Some(tag) = model.top_tag_suggestion.take() {
                     model.input_tags.push(tag);
                     model.editing_mode = EditingMode::Idle;
-                    model.input = "".to_string();
+                    model.input = Input::new("".to_string());
 
                     // let last_space_index = model.input.rfind(|ch| ch == ' ');
                     return None; // Some(QueryChanged)
@@ -137,8 +134,28 @@ impl App {
 
                 None
             }
-            Message::InputKeyEventEntered(letter) => {
-                // TODO
+            Message::InputKeyEventEntered(key_event) => {
+                let input_req = match (key_event.code, key_event.modifiers) {
+                    (Backspace, KeyModifiers::NONE) => Some(DeletePrevChar),
+                    (Delete, KeyModifiers::NONE) => Some(DeleteNextChar),
+                    (Tab, KeyModifiers::NONE) => None,
+                    (Left, KeyModifiers::NONE) => Some(GoToPrevChar),
+                    (Left, KeyModifiers::CONTROL) => Some(GoToPrevWord),
+                    (Right, KeyModifiers::NONE) => Some(GoToNextChar),
+                    (Right, KeyModifiers::CONTROL) => Some(GoToNextWord),
+                    (Char('w'), KeyModifiers::CONTROL) => Some(DeletePrevWord),
+                    (Char('k'), KeyModifiers::CONTROL) => Some(DeleteTillEnd),
+                    (Home, KeyModifiers::NONE) => Some(GoToStart),
+                    (End, KeyModifiers::NONE) => Some(GoToEnd),
+                    (Char(c), KeyModifiers::NONE) => Some(InsertChar(c)),
+                    (Char(c), KeyModifiers::SHIFT) => Some(InsertChar(c)),
+                    (_, _) => None,
+                };
+
+                if let Some(input_req) = input_req {
+                    model.input.handle(input_req);
+                }
+
                 None
             }
             Message::Exit => {
@@ -176,7 +193,7 @@ impl App {
             .model
             .tags
             .iter()
-            .filter_map(|tag| match self.matcher.fuzzy_indices(tag, self.input.value()) {
+            .filter_map(|tag| match self.matcher.fuzzy_indices(tag, model.input.value()) {
                 Some(result) => Some((result, tag)),
                 None => None,
             })

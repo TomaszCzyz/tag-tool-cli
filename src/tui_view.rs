@@ -2,12 +2,9 @@ use crate::tui::Model;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, List, Paragraph};
 use std::iter;
-use tui_input::Input;
 
 #[derive(Debug, Default)]
-pub struct ViewRenderer {
-    input: Input,
-}
+pub struct ViewRenderer;
 
 impl ViewRenderer {
     pub fn render(&self, model: &Model, frame: &mut Frame) {
@@ -39,9 +36,9 @@ impl ViewRenderer {
     fn render_input(&self, model: &Model, frame: &mut Frame, area: Rect) {
         // keep 2 for borders and 1 for cursor
         let width = area.width.max(3) - 3;
-        let scroll = self.input.visual_scroll(width as usize);
+        let scroll = model.input.visual_scroll(width as usize);
         let style: Style = Color::Yellow.into();
-        let input = Paragraph::new(self.input.value())
+        let input = Paragraph::new(model.input.value())
             .style(style)
             .scroll((0, scroll as u16))
             .block(Block::bordered().title("Input"));
@@ -49,7 +46,7 @@ impl ViewRenderer {
 
         // Ratatui hides the cursor unless it's explicitly set. Position the cursor past the
         // end of the input text and one line down from the border to the input line
-        let x = self.input.visual_cursor().max(scroll) - scroll + 1;
+        let x = model.input.visual_cursor().max(scroll) - scroll + 1;
         frame.set_cursor_position((area.x + x as u16, area.y + 1))
     }
 
