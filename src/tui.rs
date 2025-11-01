@@ -5,17 +5,15 @@ use ratatui::DefaultTerminal;
 use ratatui::crossterm::event;
 use ratatui::crossterm::event::KeyCode::{Backspace, Char, Delete, End, Home, Left, Right, Tab};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::prelude::*;
 use std::time::Duration;
-use tui_input::Input;
 use tui_input::InputRequest::{
     DeleteNextChar, DeletePrevChar, DeletePrevWord, DeleteTillEnd, GoToEnd, GoToNextChar, GoToNextWord, GoToPrevChar, GoToPrevWord,
     GoToStart, InsertChar,
 };
+use tui_input::{Input, InputRequest};
 
 /// The main application which holds the state and logic of the application.
 pub struct App {
-    model: Model,
     view_renderer: ViewRenderer,
 
     matcher: Box<dyn FuzzyMatcher>,
@@ -48,6 +46,7 @@ pub struct Model {
 enum Message {
     InputKeyEventEntered(KeyEvent),
     AcceptTopSuggestion,
+    UpdateTagsSuggestions,
     Exit,
 }
 
@@ -61,124 +60,115 @@ enum EditingMode {
 impl App {
     /// Construct a new instance of [`App`].
     pub fn new() -> Self {
-        let tags: Vec<String> = std::fs::read_to_string("test-tags.txt")
-            .map(|content| {
-                content
-                    .replace('\n', "")
-                    .split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect()
-            })
-            .unwrap_or_default();
-
         Self {
             matcher: Box::new(SkimMatcherV2::default()),
-            model: Model {
-                running_state: RunningState::Running,
-                editing_mode: EditingMode::Typing,
-                tags: tags.iter().cloned().collect(),
-                tags_suggestions: vec![],
-                input_tags: vec![],
-                top_tag_suggestion: None,
-                items: vec![],
-                input: Input::default(),
-            },
             view_renderer: ViewRenderer::default(),
         }
     }
 
     /// Run the application's main loop.
     pub fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
-        let mut model = Model::default();
+        let tags: Vec<String> = std::fs::read_to_string("test-tags.txt").map(|content| {
+            content
+                .replace('\n', "")
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect()
+        })?;
+
+        let mut model = Model {
+            running_state: RunningState::Running,
+            editing_mode: EditingMode::Typing,
+            tags: tags.iter().cloned().collect(),
+            tags_suggestions: vec![],
+            input_tags: vec![],
+            top_tag_suggestion: None,
+            items: vec![],
+            input: Input::default(),
+        };
 
         while model.running_state != RunningState::Done {
             terminal.draw(|f| self.view_renderer.render(&model, f))?;
 
             let mut current_msg = self.handle_event(&model)?;
             while let Some(msg) = current_msg {
-                current_msg = Self::update(&mut model, msg);
+                current_msg = self.update(&mut model, msg);
             }
         }
 
         Ok(())
-
-        // loop {
-        //     let event = event::read()?;
-        //     if let Event::Key(key) = event {
-        //         match key.code {
-        //             KeyCode::Enter => {
-        //                 if let Some(tag) = self.model.top_tag_suggestion.take() {
-        //                     let current_value = self.input.value();
-        //                     let new_value = format!("{} {}", current_value, tag);
-        //                     self.input = Input::from(new_value);
-        //                 }
-        //                 ()
-        //             }
-        //         }
-        //     }
-        // }
     }
 
-    fn update(model: &mut Model, msg: Message) -> Option<Message> {
+    fn update(&mut self, model: &mut Model, msg: Message) -> Option<Message> {
         match msg {
             Message::AcceptTopSuggestion => {
                 if let Some(tag) = model.top_tag_suggestion.take() {
                     model.input_tags.push(tag);
                     model.editing_mode = EditingMode::Idle;
                     model.input = Input::new("".to_string());
-
-                    // let last_space_index = model.input.rfind(|ch| ch == ' ');
-                    return None; // Some(QueryChanged)
+                    // return  Some(QueryChanged)
                 }
 
                 None
             }
             Message::InputKeyEventEntered(key_event) => {
-                let input_req = match (key_event.code, key_event.modifiers) {
-                    (Backspace, KeyModifiers::NONE) => Some(DeletePrevChar),
-                    (Delete, KeyModifiers::NONE) => Some(DeleteNextChar),
-                    (Tab, KeyModifiers::NONE) => None,
-                    (Left, KeyModifiers::NONE) => Some(GoToPrevChar),
-                    (Left, KeyModifiers::CONTROL) => Some(GoToPrevWord),
-                    (Right, KeyModifiers::NONE) => Some(GoToNextChar),
-                    (Right, KeyModifiers::CONTROL) => Some(GoToNextWord),
-                    (Char('w'), KeyModifiers::CONTROL) => Some(DeletePrevWord),
-                    (Char('k'), KeyModifiers::CONTROL) => Some(DeleteTillEnd),
-                    (Home, KeyModifiers::NONE) => Some(GoToStart),
-                    (End, KeyModifiers::NONE) => Some(GoToEnd),
-                    (Char(c), KeyModifiers::NONE) => Some(InsertChar(c)),
-                    (Char(c), KeyModifiers::SHIFT) => Some(InsertChar(c)),
-                    (_, _) => None,
-                };
+                if let Some(req) = Self::map_to_input_request(key_event) {
+                    model.input.handle(req);
 
-                if let Some(input_req) = input_req {
-                    model.input.handle(input_req);
+                    return Some(Message::UpdateTagsSuggestions);
                 }
-
                 None
             }
             Message::Exit => {
                 model.running_state = RunningState::Done;
                 None
             }
+            Message::UpdateTagsSuggestions => {
+                model.tags_suggestions = self.calc_tags_suggestions(&model.tags, model.input.value());
+
+                if let Some(top_suggestion) = model.tags_suggestions.first() {
+                    model.top_tag_suggestion = Some(top_suggestion.0.clone());
+                }
+
+                None
+            }
+        }
+    }
+
+    fn map_to_input_request(key_event: KeyEvent) -> Option<InputRequest> {
+        match (key_event.code, key_event.modifiers) {
+            (Backspace, KeyModifiers::NONE) => Some(DeletePrevChar),
+            (Delete, KeyModifiers::NONE) => Some(DeleteNextChar),
+            (Tab, KeyModifiers::NONE) => None,
+            (Left, KeyModifiers::NONE) => Some(GoToPrevChar),
+            (Left, KeyModifiers::CONTROL) => Some(GoToPrevWord),
+            (Right, KeyModifiers::NONE) => Some(GoToNextChar),
+            (Right, KeyModifiers::CONTROL) => Some(GoToNextWord),
+            (Char('w'), KeyModifiers::CONTROL) => Some(DeletePrevWord),
+            (Char('k'), KeyModifiers::CONTROL) => Some(DeleteTillEnd),
+            (Home, KeyModifiers::NONE) => Some(GoToStart),
+            (End, KeyModifiers::NONE) => Some(GoToEnd),
+            (Char(c), KeyModifiers::NONE) => Some(InsertChar(c)),
+            (Char(c), KeyModifiers::SHIFT) => Some(InsertChar(c)),
+            (_, _) => None,
         }
     }
 
     /// Convert Event to Message
-    fn handle_event(&self, _: &Model) -> color_eyre::Result<Option<Message>> {
+    fn handle_event(&self, model: &Model) -> color_eyre::Result<Option<Message>> {
         if event::poll(Duration::from_millis(250))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
-                    return Ok(self.handle_key(key));
+                    return Ok(self.handle_key(key, model));
                 }
             }
         }
         Ok(None)
     }
 
-    fn handle_key(&self, key: KeyEvent) -> Option<Message> {
-        match self.model.editing_mode {
+    fn handle_key(&self, key: KeyEvent, model: &Model) -> Option<Message> {
+        match model.editing_mode {
             EditingMode::Typing => match key.code {
                 KeyCode::Enter => Some(Message::AcceptTopSuggestion),
                 KeyCode::Esc => Some(Message::Exit),
@@ -188,22 +178,16 @@ impl App {
         }
     }
 
-    fn calc_tags_suggestions(&mut self, model: &Model, frame: &mut Frame, area: Rect) -> Vec<(String, Vec<usize>)> {
-        let mut score_tags = self
-            .model
-            .tags
+    fn calc_tags_suggestions(&self, tags: &Vec<String>, pattern: &str) -> Vec<(String, Vec<usize>)> {
+        let mut score_tags = tags
             .iter()
-            .filter_map(|tag| match self.matcher.fuzzy_indices(tag, model.input.value()) {
+            .filter_map(|tag| match self.matcher.fuzzy_indices(tag, pattern) {
                 Some(result) => Some((result, tag)),
                 None => None,
             })
             .collect::<Vec<_>>();
 
         score_tags.sort_unstable_by_key(|((s, _), _)| 100 - *s);
-
-        if score_tags.len() > 0 {
-            self.model.top_tag_suggestion = Some(score_tags[0].1.to_string());
-        }
 
         score_tags
             .into_iter()
