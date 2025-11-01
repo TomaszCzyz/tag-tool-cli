@@ -105,7 +105,7 @@ impl App {
             Message::AcceptTopSuggestion => {
                 if let Some(tag) = model.top_tag_suggestion.take() {
                     model.input_tags.push(tag);
-                    model.editing_mode = EditingMode::Idle;
+                    // model.editing_mode = EditingMode::Idle;
                     model.input = Input::new("".to_string());
                     // return  Some(QueryChanged)
                 }
