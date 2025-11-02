@@ -30,17 +30,19 @@ enum RunningState {
 pub struct Model {
     running_state: RunningState,
     editing_mode: EditingMode,
-
     /// Only currently typed text, i.e. part of a single tag
-    pub(crate) input: Input,
-    /// Accepted tags
-    input_tags: Vec<String>,
-
+    pub input: Input,
     tags: Vec<String>,
     top_tag_suggestion: Option<String>,
     /// tag text with indices of matched characters
     pub tags_suggestions: Vec<(String, Vec<usize>)>,
     pub items: Vec<String>,
+}
+
+impl Model {
+    pub fn input_tags(&self) -> Vec<String> {
+        self.input.value().split_whitespace().map(|s| s.to_string()).collect()
+    }
 }
 
 enum Message {
@@ -82,7 +84,6 @@ impl App {
             editing_mode: EditingMode::Typing,
             tags: tags.iter().cloned().collect(),
             tags_suggestions: vec![],
-            input_tags: vec![],
             top_tag_suggestion: None,
             items: vec![],
             input: Input::default(),
@@ -104,18 +105,23 @@ impl App {
         match msg {
             Message::AcceptTopSuggestion => {
                 if let Some(tag) = model.top_tag_suggestion.take() {
-                    model.input_tags.push(tag);
-                    // model.editing_mode = EditingMode::Idle;
-                    model.input = Input::new("".to_string());
-                    // return  Some(QueryChanged)
+                    let t = match model.input.value().rfind(|c: char| c.is_whitespace()) {
+                        Some(idx) => format!("{} {} ", &model.input.value()[..idx], tag),
+                        None => format!("{} ", tag),
+                    };
+
+                    model.input = Input::new(t);
+                    model.tags_suggestions = Vec::new();
                 }
 
                 None
             }
             Message::InputKeyEventEntered(key_event) => {
+                if key_event.code == Char(' ') && model.input.value().chars().last() == Some(' ') {
+                    return None;
+                }
                 if let Some(req) = Self::map_to_input_request(key_event) {
                     model.input.handle(req);
-
                     return Some(Message::UpdateTagsSuggestions);
                 }
                 None
@@ -125,7 +131,18 @@ impl App {
                 None
             }
             Message::UpdateTagsSuggestions => {
-                model.tags_suggestions = self.calc_tags_suggestions(&model.tags, model.input.value());
+                let pattern = match model.input.value().rfind(|c: char| c.is_whitespace()) {
+                    Some(idx) => &model.input.value()[idx..],
+                    None => model.input.value(),
+                };
+                let input_tags = model.input_tags();
+                let vec = model
+                    .tags
+                    .iter()
+                    .filter(|&tag| !input_tags.contains(tag))
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>();
+                model.tags_suggestions = self.calc_tags_suggestions(&vec, pattern);
 
                 if let Some(top_suggestion) = model.tags_suggestions.first() {
                     model.top_tag_suggestion = Some(top_suggestion.0.clone());
@@ -178,7 +195,8 @@ impl App {
         }
     }
 
-    fn calc_tags_suggestions(&self, tags: &Vec<String>, pattern: &str) -> Vec<(String, Vec<usize>)> {
+    fn calc_tags_suggestions(&self, tags: &[&str], pattern: &str) -> Vec<(String, Vec<usize>)> {
+        let pattern = pattern.trim();
         let mut score_tags = tags
             .iter()
             .filter_map(|tag| match self.matcher.fuzzy_indices(tag, pattern) {

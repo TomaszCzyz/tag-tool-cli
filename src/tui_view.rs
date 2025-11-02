@@ -33,15 +33,17 @@ impl ViewRenderer {
         frame.render_widget(suggestions_line, area);
     }
 
+    #[allow(unstable_name_collisions)]
     fn render_input(&self, model: &Model, frame: &mut Frame, area: Rect) {
-        // keep 2 for borders and 1 for cursor
         let width = area.width.max(3) - 3;
         let scroll = model.input.visual_scroll(width as usize);
         let style: Style = Color::Yellow.into();
+
         let input = Paragraph::new(model.input.value())
             .style(style)
             .scroll((0, scroll as u16))
             .block(Block::bordered().title("Input"));
+
         frame.render_widget(input, area);
 
         // Ratatui hides the cursor unless it's explicitly set. Position the cursor past the

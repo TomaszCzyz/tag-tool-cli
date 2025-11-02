@@ -43,3 +43,4 @@ sha2 = "0.10.9"
 blake3 = { version = "1.8.2", features = ["mmap", "serde"] }
 thiserror = "2.0.17"
 dashmap = "6.1.0"
+itertools = "0.14.0"
