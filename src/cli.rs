@@ -17,6 +17,8 @@ pub enum Commands {
         #[command(subcommand)]
         command: TagsCommands,
     },
+    /// Search items by tags.
+    Search,
     /// Manage items.
     Items {
         #[command(subcommand)]
@@ -39,7 +41,4 @@ pub enum TagsCommands {
 }
 
 #[derive(Subcommand)]
-pub enum ItemsCommands {
-    /// Search items by tags.
-    Search,
-}
+pub enum ItemsCommands {}

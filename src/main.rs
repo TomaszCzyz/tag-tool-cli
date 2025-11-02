@@ -20,10 +20,10 @@ use crate::tui::App;
 use blake3::Hash;
 use clap::Parser;
 use color_eyre::{Report, Result};
-use crossterm::event::{read, Event, KeyCode, KeyEvent};
+use crossterm::event::{Event, KeyCode, KeyEvent, read};
 use directories::{ProjectDirs, UserDirs};
-use esrs::manager::AggregateManager;
 use esrs::AggregateState;
+use esrs::manager::AggregateManager;
 use log::info;
 use once_cell::sync::Lazy;
 use same_file::is_same_file;
@@ -131,12 +131,13 @@ async fn main() -> Result<()> {
                 }
             }
         }),
-        Commands::Items { command } => Ok(match command {
-            ItemsCommands::Search => {
-                let app = App::from(db, Box::new(tag_items_view));
-                launch_tui(app).await??;
-            }
-        }),
+        Commands::Search => {
+            let app = App::from(db, Box::new(tag_items_view));
+            launch_tui(app).await??;
+
+            Ok(())
+        }
+        Commands::Items { .. } => Ok(()),
     }
 }
 
