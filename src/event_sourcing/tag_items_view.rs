@@ -1,4 +1,5 @@
 use sqlx::{Executor, Pool, Sqlite};
+use tokio::time::Instant;
 use uuid::Uuid;
 
 #[allow(unused)]
@@ -70,6 +71,8 @@ impl TagItemsView {
     }
 
     pub async fn get_all_tags(&self, executor: impl Executor<'_, Database = Sqlite>) -> Result<Vec<String>, sqlx::Error> {
+        let start = Instant::now();
+
         let query = format!(
             r#"
             SELECT DISTINCT tag
@@ -80,6 +83,8 @@ impl TagItemsView {
         );
 
         let rows = sqlx::query_as::<_, (String,)>(query.as_str()).fetch_all(executor).await?;
+
+        dbg!("get_all_tags: {:?}", start.elapsed());
 
         Ok(rows.into_iter().map(|(tag,)| tag).collect())
     }

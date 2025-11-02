@@ -20,10 +20,10 @@ use crate::tui::App;
 use blake3::Hash;
 use clap::Parser;
 use color_eyre::{Report, Result};
-use crossterm::event::{Event, KeyCode, KeyEvent, read};
+use crossterm::event::{read, Event, KeyCode, KeyEvent};
 use directories::{ProjectDirs, UserDirs};
-use esrs::AggregateState;
 use esrs::manager::AggregateManager;
+use esrs::AggregateState;
 use log::info;
 use once_cell::sync::Lazy;
 use same_file::is_same_file;
@@ -50,6 +50,7 @@ async fn main() -> Result<()> {
 
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
         .format_timestamp(None)
+        .format_timestamp_millis()
         .format_target(false)
         .init();
 
