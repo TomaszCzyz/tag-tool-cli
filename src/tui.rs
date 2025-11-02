@@ -1,3 +1,4 @@
+use crate::event_sourcing::tag_items_view::TagItemsView;
 use crate::tui_view::ViewRenderer;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
@@ -5,6 +6,7 @@ use ratatui::DefaultTerminal;
 use ratatui::crossterm::event;
 use ratatui::crossterm::event::KeyCode::{Backspace, Char, Delete, End, Home, Left, Right, Tab};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use sqlx::{Pool, Sqlite};
 use std::time::Duration;
 use tui_input::InputRequest::{
     DeleteNextChar, DeletePrevChar, DeletePrevWord, DeleteTillEnd, GoToEnd, GoToNextChar, GoToNextWord, GoToPrevChar, GoToPrevWord,
@@ -15,15 +17,9 @@ use tui_input::{Input, InputRequest};
 /// The main application which holds the state and logic of the application.
 pub struct App {
     view_renderer: ViewRenderer,
-
     matcher: Box<dyn FuzzyMatcher>,
-}
-
-#[derive(Debug, Default, PartialEq, Eq)]
-enum RunningState {
-    #[default]
-    Running,
-    Done,
+    pub tag_items_view: Box<TagItemsView>,
+    pub db: Pool<Sqlite>,
 }
 
 #[derive(Debug, Default)]
@@ -45,11 +41,11 @@ impl Model {
     }
 }
 
-enum Message {
-    InputKeyEventEntered(KeyEvent),
-    AcceptTopSuggestion,
-    UpdateTagsSuggestions,
-    Exit,
+#[derive(Debug, Default, PartialEq, Eq)]
+enum RunningState {
+    #[default]
+    Running,
+    Done,
 }
 
 #[derive(Debug, Default)]
@@ -59,17 +55,27 @@ enum EditingMode {
     Idle,
 }
 
+enum Message {
+    InputKeyEventEntered(KeyEvent),
+    AcceptTopSuggestion,
+    UpdateTagsSuggestions,
+    Exit,
+}
+
 impl App {
-    /// Construct a new instance of [`App`].
-    pub fn new() -> Self {
+    pub fn from(db: Pool<Sqlite>, tag_items_view: Box<TagItemsView>) -> Self {
         Self {
             matcher: Box::new(SkimMatcherV2::default()),
             view_renderer: ViewRenderer::default(),
+            tag_items_view,
+            db,
         }
     }
 
-    /// Run the application's main loop.
-    pub fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
+    pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
+        let vec1 = self.tag_items_view.get_all_tags(&self.db).await?;
+        println!("{:?}", vec1);
+
         let tags: Vec<String> = std::fs::read_to_string("test-tags.txt").map(|content| {
             content
                 .replace('\n', "")

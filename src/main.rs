@@ -132,7 +132,8 @@ async fn main() -> Result<()> {
         }),
         Commands::Items { command } => Ok(match command {
             ItemsCommands::Search => {
-                launch_tui(App::new())??;
+                let app = App::from(db, Box::new(tag_items_view));
+                launch_tui(app).await??;
             }
         }),
     }
@@ -239,10 +240,10 @@ fn hash_file(path: &PathBuf) -> Hash {
     hash
 }
 
-fn launch_tui(app: App) -> Result<Result<()>, Report> {
+async fn launch_tui(app: App) -> Result<Result<()>, Report> {
     color_eyre::install()?;
     let terminal = ratatui::init();
-    let result = app.run(terminal);
+    let result = app.run(terminal).await;
     ratatui::restore();
     Ok(result)
 }
