@@ -1,3 +1,4 @@
+use crate::event_sourcing::item_view::ItemView;
 use crate::event_sourcing::tag_items_view::TagItemsView;
 use crate::tui_view::ViewRenderer;
 use fuzzy_matcher::FuzzyMatcher;
@@ -19,6 +20,7 @@ pub struct App {
     view_renderer: ViewRenderer,
     matcher: Box<dyn FuzzyMatcher>,
     pub tag_items_view: Box<TagItemsView>,
+    pub items_view: Box<ItemView>,
     pub db: Pool<Sqlite>,
 }
 
@@ -57,33 +59,25 @@ enum EditingMode {
 
 enum Message {
     InputKeyEventEntered(KeyEvent),
+    QueryChanged,
     AcceptTopSuggestion,
     UpdateTagsSuggestions,
     Exit,
 }
 
 impl App {
-    pub fn from(db: Pool<Sqlite>, tag_items_view: Box<TagItemsView>) -> Self {
+    pub fn from(db: Pool<Sqlite>, tag_items_view: Box<TagItemsView>, items_view: Box<ItemView>) -> Self {
         Self {
             matcher: Box::new(SkimMatcherV2::default()),
             view_renderer: ViewRenderer::default(),
             tag_items_view,
+            items_view,
             db,
         }
     }
 
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
-        let vec1 = self.tag_items_view.get_all_tags(&self.db).await?;
-        println!("{:?}", vec1);
-
-        let tags: Vec<String> = std::fs::read_to_string("test-tags.txt").map(|content| {
-            content
-                .replace('\n', "")
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect()
-        })?;
+        let tags = self.tag_items_view.get_all_tags(&self.db).await?;
 
         let mut model = Model {
             running_state: RunningState::Running,
@@ -95,19 +89,24 @@ impl App {
             input: Input::default(),
         };
 
+        let mut current_msg = Some(Message::UpdateTagsSuggestions);
+        while let Some(msg) = current_msg {
+            current_msg = self.update(&mut model, msg).await;
+        }
+
         while model.running_state != RunningState::Done {
             terminal.draw(|f| self.view_renderer.render(&model, f))?;
 
             let mut current_msg = self.handle_event(&model)?;
             while let Some(msg) = current_msg {
-                current_msg = self.update(&mut model, msg);
+                current_msg = self.update(&mut model, msg).await;
             }
         }
 
         Ok(())
     }
 
-    fn update(&mut self, model: &mut Model, msg: Message) -> Option<Message> {
+    async fn update(&mut self, model: &mut Model, msg: Message) -> Option<Message> {
         match msg {
             Message::AcceptTopSuggestion => {
                 if let Some(tag) = model.top_tag_suggestion.take() {
@@ -118,6 +117,8 @@ impl App {
 
                     model.input = Input::new(t);
                     model.tags_suggestions = Vec::new();
+
+                    return Some(Message::QueryChanged)
                 }
 
                 None
@@ -154,6 +155,11 @@ impl App {
                     model.top_tag_suggestion = Some(top_suggestion.0.clone());
                 }
 
+                None
+            }
+            Message::QueryChanged => {
+                let results = self.tag_items_view.get_by_tags(model.input_tags(), &self.db).await.unwrap();
+                model.items = results;
                 None
             }
         }

@@ -132,7 +132,7 @@ async fn main() -> Result<()> {
             }
         }),
         Commands::Search => {
-            let app = App::from(db, Box::new(tag_items_view));
+            let app = App::from(db, Box::new(tag_items_view), Box::new(item_view));
             launch_tui(app).await??;
 
             Ok(())

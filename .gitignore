@@ -99,4 +99,6 @@ tests/rustdoc-gui/src/**.lock
 flake.lock
 /default.nix
 
+# custom
+/playground
 # Before adding new lines, see the comment at the top.
