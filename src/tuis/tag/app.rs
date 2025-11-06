@@ -1,13 +1,14 @@
-use crate::event_sourcing::item_view::ItemView;
 use crate::event_sourcing::tag_items_view::TagItemsView;
-use crate::tuis::search::model::{EditingMode, Model, RunningState};
-use crate::tuis::search::view::{TaggedItem, ViewRenderer};
+use crate::tuis::tag::model::{Model, RunningState};
+use crate::tuis::tag::view::ViewRenderer;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event;
 use ratatui::crossterm::event::KeyCode::{Backspace, Char, Delete, End, Home, Left, Right, Tab};
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
+use ratatui::prelude::Line;
+use ratatui::widgets::Block;
 use sqlx::{Pool, Sqlite};
 use std::time::Duration;
 use tui_input::InputRequest::{
@@ -19,7 +20,6 @@ use crate::tuis::utils::map_to_input_request;
 
 enum Message {
     InputKeyEventEntered(KeyEvent),
-    QueryChanged,
     AcceptTopSuggestion,
     UpdateTagsSuggestions,
     Exit,
@@ -30,38 +30,37 @@ pub struct App {
     view_renderer: ViewRenderer,
     matcher: Box<dyn FuzzyMatcher>,
     pub tag_items_view: Box<TagItemsView>,
-    pub items_view: Box<ItemView>,
     pub db: Pool<Sqlite>,
 }
 
 impl App {
-    pub fn from(db: Pool<Sqlite>, tag_items_view: Box<TagItemsView>, items_view: Box<ItemView>) -> Self {
+    pub fn from(db: Pool<Sqlite>, tag_items_view: Box<TagItemsView>) -> Self {
         Self {
             matcher: Box::new(SkimMatcherV2::default()),
             view_renderer: ViewRenderer::default(),
             tag_items_view,
-            items_view,
             db,
         }
     }
 
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
+        // terminal.draw(|frame| {
+        //     let area = frame.area();
+        // 
+        //     let block = Block::new().title(Line::from("Progress").centered());
+        //     frame.render_widget(block, area);
+        // })?;
+        // return Ok(());
+
         let tags = self.tag_items_view.get_all_tags(&self.db).await?;
 
         let mut model = Model {
             running_state: RunningState::Running,
-            editing_mode: EditingMode::Typing,
             tags: tags.iter().cloned().collect(),
             tags_suggestions: vec![],
             top_tag_suggestion: None,
-            tagged_items: vec![],
             input: Input::default(),
         };
-
-        let mut current_msg = Some(Message::UpdateTagsSuggestions);
-        while let Some(msg) = current_msg {
-            current_msg = self.update(&mut model, msg).await;
-        }
 
         while model.running_state != RunningState::Done {
             terminal.draw(|f| self.view_renderer.render(&model, f))?;
@@ -86,8 +85,6 @@ impl App {
 
                     model.input = Input::new(t);
                     model.tags_suggestions = Vec::new();
-
-                    return Some(Message::QueryChanged);
                 }
 
                 None
@@ -126,21 +123,9 @@ impl App {
 
                 None
             }
-            Message::QueryChanged => {
-                model.tagged_items = self
-                    .tag_items_view
-                    .get_by_tags(model.input_tags(), &self.db)
-                    .await
-                    .unwrap()
-                    .iter()
-                    .map(|s| TaggedItem::new(&s.path, &s.tags))
-                    .collect();
-
-                Some(Message::UpdateTagsSuggestions)
-            }
         }
     }
-
+    
     /// Convert Event to Message
     fn handle_event(&self, model: &Model) -> color_eyre::Result<Option<Message>> {
         if event::poll(Duration::from_millis(250))? {
@@ -152,15 +137,11 @@ impl App {
         }
         Ok(None)
     }
-
-    fn handle_key(&self, key: KeyEvent, model: &Model) -> Option<Message> {
-        match model.editing_mode {
-            EditingMode::Typing => match key.code {
-                KeyCode::Enter => Some(Message::AcceptTopSuggestion),
-                KeyCode::Esc => Some(Message::Exit),
-                _ => Some(Message::InputKeyEventEntered(key)),
-            },
-            _ => None,
+    fn handle_key(&self, key: KeyEvent, _model: &Model) -> Option<Message> {
+        match key.code {
+            KeyCode::Enter => Some(Message::AcceptTopSuggestion),
+            KeyCode::Esc => Some(Message::Exit),
+            _ => Some(Message::InputKeyEventEntered(key)),
         }
     }
 

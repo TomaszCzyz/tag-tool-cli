@@ -15,6 +15,7 @@ use crate::event_sourcing::sqlite_store::event_store::SqliteStore;
 use crate::event_sourcing::tag_items_event_handler::TagItemsEventHandler;
 use crate::event_sourcing::tag_items_view::TagItemsView;
 use crate::login::LoginFlow;
+use crate::tuis::search::app::App;
 use blake3::Hash;
 use clap::Parser;
 use color_eyre::{Report, Result};
@@ -24,17 +25,22 @@ use esrs::AggregateState;
 use esrs::manager::AggregateManager;
 use log::info;
 use once_cell::sync::Lazy;
+use ratatui::crossterm::terminal::ClearType;
+use ratatui::crossterm::{ExecutableCommand, QueueableCommand, cursor, terminal};
+use ratatui::prelude::{CrosstermBackend, Rect};
+use ratatui::widgets::{Block, Borders, Paragraph};
+use ratatui::{Terminal, TerminalOptions, Viewport};
 use same_file::is_same_file;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Pool, Sqlite};
 use std::collections::HashSet;
-use std::fs;
 use std::fs::OpenOptions;
+use std::io::{Write, stdout};
 use std::path::PathBuf;
+use std::{fs, io};
 use tokio::time::Instant;
 use tracing::error;
 use uuid::Uuid;
-use crate::tuis::search::app::App;
 
 static PROJECT_DIRS: Lazy<ProjectDirs> =
     Lazy::new(|| ProjectDirs::from("com", "example", "tag-tool-cli").expect("failed to determine project directories"));
@@ -63,6 +69,10 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
     match &cli.command {
+        Commands::TagI => {
+            let app = tuis::tag::app::App::from(db, Box::new(tag_items_view));
+            launch_tag_tui(app).await?
+        }
         Commands::Tag {
             path,
             tags: tags_option,
@@ -245,6 +255,23 @@ async fn launch_tui(app: App) -> Result<Result<()>, Report> {
     color_eyre::install()?;
     let terminal = ratatui::init();
     let result = app.run(terminal).await;
+    ratatui::restore();
+    Ok(result)
+}
+
+async fn launch_tag_tui(app: tuis::tag::app::App) -> Result<Result<()>, Report> {
+    let terminal = ratatui::init_with_options(TerminalOptions {
+        viewport: Viewport::Inline(5),
+    });
+    let t = terminal.size()?;
+
+    color_eyre::install()?;
+    let result = app.run(terminal).await;
+
+    // reset the cursor to the left
+    let mut stdout = stdout();
+    stdout.execute(cursor::MoveTo(0, t.height))?;
+
     ratatui::restore();
     Ok(result)
 }
