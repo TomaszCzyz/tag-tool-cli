@@ -6,8 +6,9 @@ mod event_sourcing;
 mod login;
 mod tui;
 mod tui_view;
+mod tui_model;
 
-use crate::cli::{Cli, Commands, ItemsCommands, TagsCommands};
+use crate::cli::{Cli, Commands, TagsCommands};
 use crate::event_sourcing::item_aggregate::{Item, ItemCommand, ItemEvent};
 use crate::event_sourcing::item_event_handler::ItemEventHandler;
 use crate::event_sourcing::item_view::ItemView;

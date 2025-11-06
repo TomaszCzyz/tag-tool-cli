@@ -1,3 +1,4 @@
+use crate::event_sourcing::item_view::ItemViewRow;
 use sqlx::{Executor, Pool, Sqlite};
 use tokio::time::Instant;
 use tracing::debug;
@@ -90,16 +91,19 @@ impl TagItemsView {
         Ok(rows.into_iter().map(|(tag,)| tag).collect())
     }
 
-    pub async fn get_by_tags(&self, tags: Vec<String>, executor: impl Executor<'_, Database = Sqlite>) -> Result<Vec<String>, sqlx::Error> {
+    pub async fn get_by_tags(
+        &self,
+        tags: Vec<String>,
+        executor: impl Executor<'_, Database = Sqlite>,
+    ) -> Result<Vec<ItemViewRow>, sqlx::Error> {
         if tags.is_empty() {
             return Ok(Vec::new());
         }
 
-        // Build WHERE clause with OR conditions for each tag
         let placeholders = tags.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
         let query = format!(
             r#"
-            SELECT DISTINCT iv.path
+            SELECT DISTINCT iv.id, iv.path, iv.hash, iv.tags
             FROM {0} tiv
             JOIN item_view iv ON tiv.item_id = iv.id
             WHERE tiv.tag IN ({1})
@@ -109,13 +113,13 @@ impl TagItemsView {
             placeholders
         );
 
-        let mut query_builder = sqlx::query_as::<_, (String,)>(query.as_str());
+        let mut query_builder = sqlx::query_as::<_, ItemViewRow>(query.as_str());
         for tag in tags {
             query_builder = query_builder.bind(tag);
         }
 
         let rows = query_builder.fetch_all(executor).await?;
-        Ok(rows.into_iter().map(|(path,)| path).collect())
+        Ok(rows)
     }
 
     pub async fn delete(&self, id: Uuid, executor: impl Executor<'_, Database = Sqlite>) -> Result<(), sqlx::Error> {

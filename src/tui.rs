@@ -1,6 +1,7 @@
 use crate::event_sourcing::item_view::ItemView;
 use crate::event_sourcing::tag_items_view::TagItemsView;
-use crate::tui_view::ViewRenderer;
+use crate::tui_model::{EditingMode, Model, RunningState};
+use crate::tui_view::{TaggedItem, ViewRenderer};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::DefaultTerminal;
@@ -24,47 +25,6 @@ pub struct App {
     pub db: Pool<Sqlite>,
 }
 
-#[derive(Debug, Default)]
-pub struct Model {
-    running_state: RunningState,
-    editing_mode: EditingMode,
-    /// Only currently typed text, i.e. part of a single tag
-    pub input: Input,
-    tags: Vec<String>,
-    top_tag_suggestion: Option<String>,
-    /// tag text with indices of matched characters
-    pub tags_suggestions: Vec<(String, Vec<usize>)>,
-    pub items: Vec<String>,
-}
-
-impl Model {
-    pub fn input_tags(&self) -> Vec<String> {
-        self.input.value().split_whitespace().map(|s| s.to_string()).collect()
-    }
-}
-
-#[derive(Debug, Default, PartialEq, Eq)]
-enum RunningState {
-    #[default]
-    Running,
-    Done,
-}
-
-#[derive(Debug, Default)]
-enum EditingMode {
-    #[default]
-    Typing,
-    Idle,
-}
-
-enum Message {
-    InputKeyEventEntered(KeyEvent),
-    QueryChanged,
-    AcceptTopSuggestion,
-    UpdateTagsSuggestions,
-    Exit,
-}
-
 impl App {
     pub fn from(db: Pool<Sqlite>, tag_items_view: Box<TagItemsView>, items_view: Box<ItemView>) -> Self {
         Self {
@@ -85,7 +45,7 @@ impl App {
             tags: tags.iter().cloned().collect(),
             tags_suggestions: vec![],
             top_tag_suggestion: None,
-            items: vec![],
+            tagged_items: vec![],
             input: Input::default(),
         };
 
@@ -118,7 +78,7 @@ impl App {
                     model.input = Input::new(t);
                     model.tags_suggestions = Vec::new();
 
-                    return Some(Message::QueryChanged)
+                    return Some(Message::QueryChanged);
                 }
 
                 None
@@ -158,9 +118,16 @@ impl App {
                 None
             }
             Message::QueryChanged => {
-                let results = self.tag_items_view.get_by_tags(model.input_tags(), &self.db).await.unwrap();
-                model.items = results;
-                None
+                model.tagged_items = self
+                    .tag_items_view
+                    .get_by_tags(model.input_tags(), &self.db)
+                    .await
+                    .unwrap()
+                    .iter()
+                    .map(|s| TaggedItem::new(&s.path, &s.tags))
+                    .collect();
+
+                Some(Message::UpdateTagsSuggestions)
             }
         }
     }
@@ -225,4 +192,12 @@ impl App {
             .map(|((_, indices), tag)| (tag.to_string(), indices))
             .collect()
     }
+}
+
+enum Message {
+    InputKeyEventEntered(KeyEvent),
+    QueryChanged,
+    AcceptTopSuggestion,
+    UpdateTagsSuggestions,
+    Exit,
 }
