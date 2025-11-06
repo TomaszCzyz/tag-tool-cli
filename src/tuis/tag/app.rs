@@ -1,27 +1,22 @@
 use crate::event_sourcing::tag_items_view::TagItemsView;
 use crate::tuis::tag::model::{Model, RunningState};
 use crate::tuis::tag::view::ViewRenderer;
+use crate::tuis::utils::map_to_input_request;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event;
-use ratatui::crossterm::event::KeyCode::{Backspace, Char, Delete, End, Home, Left, Right, Tab};
+use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use ratatui::prelude::Line;
-use ratatui::widgets::Block;
 use sqlx::{Pool, Sqlite};
 use std::time::Duration;
-use tui_input::InputRequest::{
-    DeleteNextChar, DeletePrevChar, DeletePrevWord, DeleteTillEnd, GoToEnd, GoToNextChar, GoToNextWord, GoToPrevChar, GoToPrevWord,
-    GoToStart, InsertChar,
-};
-use tui_input::{Input, InputRequest};
-use crate::tuis::utils::map_to_input_request;
+use tui_input::Input;
 
 enum Message {
     InputKeyEventEntered(KeyEvent),
     AcceptTopSuggestion,
     UpdateTagsSuggestions,
+    TagAndExit,
     Exit,
 }
 
@@ -46,7 +41,7 @@ impl App {
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
         // terminal.draw(|frame| {
         //     let area = frame.area();
-        // 
+        //
         //     let block = Block::new().title(Line::from("Progress").centered());
         //     frame.render_widget(block, area);
         // })?;
@@ -123,9 +118,13 @@ impl App {
 
                 None
             }
+            Message::TagAndExit => {
+                // TODO: tag an item
+                Some(Message::Exit)
+            }
         }
     }
-    
+
     /// Convert Event to Message
     fn handle_event(&self, model: &Model) -> color_eyre::Result<Option<Message>> {
         if event::poll(Duration::from_millis(250))? {
@@ -137,6 +136,7 @@ impl App {
         }
         Ok(None)
     }
+
     fn handle_key(&self, key: KeyEvent, _model: &Model) -> Option<Message> {
         match key.code {
             KeyCode::Enter => Some(Message::AcceptTopSuggestion),
