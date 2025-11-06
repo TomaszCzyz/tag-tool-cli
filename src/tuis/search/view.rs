@@ -1,10 +1,9 @@
-use crate::tui_model::Model;
-use color_eyre::owo_colors::OwoColorize;
 use ratatui::prelude::*;
 use ratatui::style::Color;
 use ratatui::widgets::{Block, List, ListItem, Paragraph};
 use std::iter;
 use std::path::PathBuf;
+use crate::tuis::search::model::Model;
 
 #[derive(Debug, Default)]
 pub struct ViewRenderer;

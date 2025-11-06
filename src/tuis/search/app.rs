@@ -1,7 +1,7 @@
 use crate::event_sourcing::item_view::ItemView;
 use crate::event_sourcing::tag_items_view::TagItemsView;
-use crate::tui_model::{EditingMode, Model, RunningState};
-use crate::tui_view::{TaggedItem, ViewRenderer};
+use crate::tuis::search::model::{EditingMode, Model, RunningState};
+use crate::tuis::search::view::{TaggedItem, ViewRenderer};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::DefaultTerminal;

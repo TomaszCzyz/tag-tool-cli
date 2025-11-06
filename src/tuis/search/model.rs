@@ -1,5 +1,5 @@
-use crate::tui_view::TaggedItem;
 use tui_input::Input;
+use crate::tuis::search::view::TaggedItem;
 
 #[derive(Debug, Default)]
 pub struct Model {
