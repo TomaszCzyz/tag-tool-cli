@@ -1,14 +1,13 @@
-use crate::event_sourcing::tag_items_view::TagItemsView;
-use crate::tuis::tag::model::{Model, RunningState};
+use crate::DbContext;
+use crate::tuis::tag::model::{EditingMode, Model, RunningState};
 use crate::tuis::tag::view::ViewRenderer;
-use crate::tuis::utils::map_to_input_request;
+use crate::tuis::utils::{calc_tags_suggestions, map_to_input_request};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event;
 use ratatui::crossterm::event::KeyCode::Char;
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use sqlx::{Pool, Sqlite};
+use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use std::time::Duration;
 use tui_input::Input;
 
@@ -21,36 +20,27 @@ enum Message {
 }
 
 /// The main application which holds the state and logic of the application.
-pub struct App {
+pub struct TagTui {
     view_renderer: ViewRenderer,
     matcher: Box<dyn FuzzyMatcher>,
-    pub tag_items_view: Box<TagItemsView>,
-    pub db: Pool<Sqlite>,
+    db_ctx: DbContext,
 }
 
-impl App {
-    pub fn from(db: Pool<Sqlite>, tag_items_view: Box<TagItemsView>) -> Self {
+impl TagTui {
+    pub fn from(db_ctx: DbContext) -> Self {
         Self {
             matcher: Box::new(SkimMatcherV2::default()),
             view_renderer: ViewRenderer::default(),
-            tag_items_view,
-            db,
+            db_ctx,
         }
     }
 
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
-        // terminal.draw(|frame| {
-        //     let area = frame.area();
-        //
-        //     let block = Block::new().title(Line::from("Progress").centered());
-        //     frame.render_widget(block, area);
-        // })?;
-        // return Ok(());
-
-        let tags = self.tag_items_view.get_all_tags(&self.db).await?;
+        let tags = self.db_ctx.tag_items_view.get_all_tags(&self.db_ctx.db).await?;
 
         let mut model = Model {
             running_state: RunningState::Running,
+            editing_mode: Default::default(),
             tags: tags.iter().cloned().collect(),
             tags_suggestions: vec![],
             top_tag_suggestion: None,
@@ -80,15 +70,22 @@ impl App {
 
                     model.input = Input::new(t);
                     model.tags_suggestions = Vec::new();
+                    model.editing_mode = EditingMode::Idle;
                 }
 
                 None
             }
             Message::InputKeyEventEntered(key_event) => {
+                if key_event.code == Char(' ') {
+                    // Space ends a 'tag search', no matter if the entered tag name is valid or not.
+                    model.editing_mode = EditingMode::Idle;
+                }
+
                 if key_event.code == Char(' ') && model.input.value().chars().last() == Some(' ') {
                     return None;
                 }
                 if let Some(req) = map_to_input_request(key_event) {
+                    model.editing_mode = EditingMode::Typing;
                     model.input.handle(req);
                     return Some(Message::UpdateTagsSuggestions);
                 }
@@ -110,7 +107,7 @@ impl App {
                     .filter(|&tag| !input_tags.contains(tag))
                     .map(|s| s.as_str())
                     .collect::<Vec<_>>();
-                model.tags_suggestions = self.calc_tags_suggestions(&vec, pattern);
+                model.tags_suggestions = calc_tags_suggestions(&vec, pattern, &self.matcher);
 
                 if let Some(top_suggestion) = model.tags_suggestions.first() {
                     model.top_tag_suggestion = Some(top_suggestion.0.clone());
@@ -119,6 +116,7 @@ impl App {
                 None
             }
             Message::TagAndExit => {
+                // self
                 // TODO: tag an item
                 Some(Message::Exit)
             }
@@ -138,29 +136,17 @@ impl App {
     }
 
     fn handle_key(&self, key: KeyEvent, _model: &Model) -> Option<Message> {
-        match key.code {
-            KeyCode::Enter => Some(Message::AcceptTopSuggestion),
-            KeyCode::Esc => Some(Message::Exit),
-            _ => Some(Message::InputKeyEventEntered(key)),
+        match _model.editing_mode {
+            EditingMode::Typing => match key.code {
+                KeyCode::Enter => Some(Message::AcceptTopSuggestion),
+                KeyCode::Esc => Some(Message::Exit),
+                _ => Some(Message::InputKeyEventEntered(key)),
+            },
+            EditingMode::Idle => match key.code {
+                KeyCode::Enter => Some(Message::TagAndExit),
+                KeyCode::Esc => Some(Message::Exit),
+                _ => None,
+            },
         }
-    }
-
-    fn calc_tags_suggestions(&self, tags: &[&str], pattern: &str) -> Vec<(String, Vec<usize>)> {
-        let pattern = pattern.trim();
-        let mut score_tags = tags
-            .iter()
-            .filter_map(|tag| match self.matcher.fuzzy_indices(tag, pattern) {
-                Some(result) => Some((result, tag)),
-                None => None,
-            })
-            .collect::<Vec<_>>();
-
-        score_tags.sort_unstable_by_key(|((s, _), _)| 100 - *s);
-
-        score_tags
-            .into_iter()
-            .take(30)
-            .map(|((_, indices), tag)| (tag.to_string(), indices))
-            .collect()
     }
 }

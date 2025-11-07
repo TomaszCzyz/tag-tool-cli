@@ -1,21 +1,15 @@
-use crate::event_sourcing::item_view::ItemView;
-use crate::event_sourcing::tag_items_view::TagItemsView;
+use crate::DbContext;
 use crate::tuis::search::model::{EditingMode, Model, RunningState};
 use crate::tuis::search::view::{TaggedItem, ViewRenderer};
+use crate::tuis::utils::map_to_input_request;
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event;
-use ratatui::crossterm::event::KeyCode::{Backspace, Char, Delete, End, Home, Left, Right, Tab};
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use sqlx::{Pool, Sqlite};
+use ratatui::crossterm::event::KeyCode::Char;
+use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
 use std::time::Duration;
-use tui_input::InputRequest::{
-    DeleteNextChar, DeletePrevChar, DeletePrevWord, DeleteTillEnd, GoToEnd, GoToNextChar, GoToNextWord, GoToPrevChar, GoToPrevWord,
-    GoToStart, InsertChar,
-};
-use tui_input::{Input, InputRequest};
-use crate::tuis::utils::map_to_input_request;
+use tui_input::Input;
 
 enum Message {
     InputKeyEventEntered(KeyEvent),
@@ -26,27 +20,23 @@ enum Message {
 }
 
 /// The main application which holds the state and logic of the application.
-pub struct App {
+pub struct TagSearchTui {
     view_renderer: ViewRenderer,
     matcher: Box<dyn FuzzyMatcher>,
-    pub tag_items_view: Box<TagItemsView>,
-    pub items_view: Box<ItemView>,
-    pub db: Pool<Sqlite>,
+    db_ctx: DbContext,
 }
 
-impl App {
-    pub fn from(db: Pool<Sqlite>, tag_items_view: Box<TagItemsView>, items_view: Box<ItemView>) -> Self {
+impl TagSearchTui {
+    pub fn from(db_ctx: DbContext) -> Self {
         Self {
             matcher: Box::new(SkimMatcherV2::default()),
             view_renderer: ViewRenderer::default(),
-            tag_items_view,
-            items_view,
-            db,
+            db_ctx,
         }
     }
 
     pub async fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
-        let tags = self.tag_items_view.get_all_tags(&self.db).await?;
+        let tags = self.db_ctx.tag_items_view.get_all_tags(&self.db_ctx.db).await?;
 
         let mut model = Model {
             running_state: RunningState::Running,
@@ -128,8 +118,9 @@ impl App {
             }
             Message::QueryChanged => {
                 model.tagged_items = self
+                    .db_ctx
                     .tag_items_view
-                    .get_by_tags(model.input_tags(), &self.db)
+                    .get_by_tags(model.input_tags(), &self.db_ctx.db)
                     .await
                     .unwrap()
                     .iter()

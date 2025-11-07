@@ -46,7 +46,7 @@ where
     A::Event: Send + Sync,
     S: Schema<A::Event> + Persistable + Send + Sync,
 {
-    /// Safely add an event handler to [`Sqlite`]. Since it appends an event handler to a [`RwLock`]
+    /// Safely add an event handler to [`Sqlite`]. Since it appends an event handler to a [`RwLock`],
     /// this function needs to be `async`.
     ///
     /// This is mostly used while there's the need to have an event handler that tries to apply a command
@@ -118,7 +118,7 @@ where
 // Use once_cell or lazy_static to init a single map per process.
 static LOCKS: once_cell::sync::Lazy<DashMap<u64, Arc<Mutex<()>>>> = once_cell::sync::Lazy::new(|| DashMap::new());
 
-// Hash Uuid to a u64 key (stable enough for the process); or use Uuid as key directly.
+// Hash Uuid to an u64 key (stable enough for the process); or use Uuid as key directly.
 fn key_from_uuid(id: Uuid) -> u64 {
     struct H(u64);
     impl Hasher for H {

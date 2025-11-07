@@ -1,3 +1,4 @@
+use fuzzy_matcher::FuzzyMatcher;
 use ratatui::crossterm::event::KeyCode::{Backspace, Char, Delete, End, Home, Left, Right, Tab};
 use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
 use tui_input::InputRequest;
@@ -23,4 +24,23 @@ pub fn map_to_input_request(key_event: KeyEvent) -> Option<InputRequest> {
         (Char(c), KeyModifiers::SHIFT) => Some(InsertChar(c)),
         (_, _) => None,
     }
+}
+
+pub fn calc_tags_suggestions(tags: &[&str], pattern: &str, matcher: &Box<dyn FuzzyMatcher>) -> Vec<(String, Vec<usize>)> {
+    let pattern = pattern.trim();
+    let mut score_tags = tags
+        .iter()
+        .filter_map(|tag| match matcher.fuzzy_indices(tag, pattern) {
+            Some(result) => Some((result, tag)),
+            None => None,
+        })
+        .collect::<Vec<_>>();
+
+    score_tags.sort_unstable_by_key(|((s, _), _)| 100 - *s);
+
+    score_tags
+        .into_iter()
+        .take(30)
+        .map(|((_, indices), tag)| (tag.to_string(), indices))
+        .collect()
 }

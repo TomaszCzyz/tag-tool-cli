@@ -22,7 +22,7 @@ impl ViewRenderer {
         self.render_tags_suggestions(model, frame, suggestions_area);
     }
 
-    fn render_header(&self, model: &Model, frame: &mut Frame, area: Rect) {
+    fn render_header(&self, _model: &Model, frame: &mut Frame, area: Rect) {
         let file_name = Span::styled("super-file.txt", Style::new().bold().italic());
         let line = Line::from_iter(["Tagging item: ".to_span(), file_name]);
 
