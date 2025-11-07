@@ -39,6 +39,7 @@ static PROJECT_DIRS: Lazy<ProjectDirs> =
     Lazy::new(|| ProjectDirs::from("com", "example", "tag-tool-cli").expect("failed to determine project directories"));
 static USER_DIRS: Lazy<UserDirs> = Lazy::new(|| UserDirs::new().expect("failed to determine user directories"));
 
+#[derive(Clone)]
 struct DbContext {
     db: Pool<Sqlite>,
     item_view: ItemView,
@@ -62,7 +63,6 @@ async fn main() -> Result<()> {
 
     let item_view = ItemView::new(&db).await;
     let tag_items_view = TagItemsView::new(&db).await;
-    let manager = setup_item_store_manager(&db, &item_view, &tag_items_view).await?;
 
     let db_ctx = DbContext {
         db: db.clone(),
@@ -85,10 +85,10 @@ async fn main() -> Result<()> {
             }
 
             if let Some(tags) = tags_option {
-                let tagger = ItemsTagger::new(db_ctx, manager);
-                tagger.tag_item(path, tags, move_to_common_storage).await
+                let tagger = ItemsTagger::initialize(db_ctx.clone()).await;
+                tagger.tag_item(path, tags, *move_to_common_storage).await
             } else {
-                let app = TagTui::from(db_ctx);
+                let app = TagTui::from(db_ctx, path.to_path_buf()).await;
                 launch_tag_tui(app).await?
             }
         }
@@ -105,28 +105,24 @@ async fn main() -> Result<()> {
         }),
         Commands::Search => {
             let app = TagSearchTui::from(db_ctx);
-            launch_tui(app).await?
+            launch_search_tui(app).await?
         }
         Commands::Items { .. } => Ok(()),
     }
 }
 
-async fn setup_item_store_manager(
-    db: &Pool<Sqlite>,
-    item_view: &ItemView,
-    tag_items_view: &TagItemsView,
-) -> Result<AggregateManager<SqliteStore<Item, ItemEvent>>, Report> {
+async fn setup_item_store_manager(db_ctx: DbContext) -> Result<AggregateManager<SqliteStore<Item, ItemEvent>>, Report> {
     let item_event_handler = ItemEventHandler {
-        pool: db.clone(),
-        view: item_view.clone(),
+        pool: db_ctx.db.clone(),
+        view: db_ctx.item_view.clone(),
     };
 
     let tag_items_event_handler = TagItemsEventHandler {
-        pool: db.clone(),
-        view: tag_items_view.clone(),
+        pool: db_ctx.db.clone(),
+        view: db_ctx.tag_items_view.clone(),
     };
 
-    let store: SqliteStore<Item> = SqliteStoreBuilder::new(db.clone())
+    let store: SqliteStore<Item> = SqliteStoreBuilder::new(db_ctx.db.clone())
         .add_event_handler(item_event_handler)
         .add_event_handler(tag_items_event_handler)
         .try_build()
@@ -135,7 +131,7 @@ async fn setup_item_store_manager(
     Ok(AggregateManager::new(store))
 }
 
-async fn launch_tui(app: TagSearchTui) -> Result<Result<()>, Report> {
+async fn launch_search_tui(app: TagSearchTui) -> Result<Result<()>, Report> {
     color_eyre::install()?;
     let terminal = ratatui::init();
     let result = app.run(terminal).await;

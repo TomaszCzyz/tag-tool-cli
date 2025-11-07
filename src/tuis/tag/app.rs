@@ -1,4 +1,5 @@
 use crate::DbContext;
+use crate::items_tagger::ItemsTagger;
 use crate::tuis::tag::model::{EditingMode, Model, RunningState};
 use crate::tuis::tag::view::ViewRenderer;
 use crate::tuis::utils::{calc_tags_suggestions, map_to_input_request};
@@ -8,6 +9,7 @@ use ratatui::DefaultTerminal;
 use ratatui::crossterm::event;
 use ratatui::crossterm::event::KeyCode::Char;
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyEventKind};
+use std::path::PathBuf;
 use std::time::Duration;
 use tui_input::Input;
 
@@ -24,14 +26,16 @@ pub struct TagTui {
     view_renderer: ViewRenderer,
     matcher: Box<dyn FuzzyMatcher>,
     db_ctx: DbContext,
+    path_buf: PathBuf,
 }
 
 impl TagTui {
-    pub fn from(db_ctx: DbContext) -> Self {
+    pub async fn from(db_ctx: DbContext, path_buf: PathBuf) -> Self {
         Self {
             matcher: Box::new(SkimMatcherV2::default()),
             view_renderer: ViewRenderer::default(),
             db_ctx,
+            path_buf,
         }
     }
 
@@ -116,8 +120,9 @@ impl TagTui {
                 None
             }
             Message::TagAndExit => {
-                // self
-                // TODO: tag an item
+                let tagger = ItemsTagger::initialize(self.db_ctx.clone()).await;
+                tagger.tag_item(&self.path_buf, &model.input_tags(), false).await.unwrap();
+
                 Some(Message::Exit)
             }
         }

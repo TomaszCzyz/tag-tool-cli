@@ -1,12 +1,12 @@
 use crate::event_sourcing::item_aggregate::{Item, ItemCommand, ItemEvent};
 use crate::event_sourcing::sqlite_store::event_store::SqliteStore;
 use crate::utils::hash_file;
-use crate::{DbContext, USER_DIRS};
+use crate::{DbContext, USER_DIRS, setup_item_store_manager};
 use blake3::Hash;
 use color_eyre::Report;
-use crossterm::event::{read, Event, KeyCode, KeyEvent};
-use esrs::manager::AggregateManager;
+use crossterm::event::{Event, KeyCode, KeyEvent, read};
 use esrs::AggregateState;
+use esrs::manager::AggregateManager;
 use log::info;
 use same_file::is_same_file;
 use std::collections::HashSet;
@@ -21,11 +21,13 @@ pub struct ItemsTagger {
 }
 
 impl ItemsTagger {
-    pub(crate) fn new(db_ctx: DbContext, manager: AggregateManager<SqliteStore<Item, ItemEvent>>) -> Self {
+    pub(crate) async fn initialize(db_ctx: DbContext) -> Self {
+        let manager = setup_item_store_manager(db_ctx.clone()).await.unwrap();
+
         Self { db_ctx, manager }
     }
 
-    pub async fn tag_item(&self, path: &PathBuf, tags: &[String], move_to_common_storage: &bool) -> color_eyre::Result<(), Report> {
+    pub async fn tag_item(&self, path: &PathBuf, tags: &[String], move_to_common_storage: bool) -> color_eyre::Result<(), Report> {
         let db_ctx = &self.db_ctx;
         let manager = &self.manager;
 
@@ -51,7 +53,7 @@ impl ItemsTagger {
         if input_tags.is_empty() {
             info!("The item already has tags: {:?}.", tags);
 
-            if *move_to_common_storage {
+            if move_to_common_storage {
                 self.move_item_to_common_storage(aggregate_id).await?;
             }
 
@@ -62,7 +64,7 @@ impl ItemsTagger {
             .handle_command(aggregate_state, ItemCommand::Tag { tags: input_tags })
             .await??;
 
-        if *move_to_common_storage {
+        if move_to_common_storage {
             self.move_item_to_common_storage(aggregate_id).await?;
         }
 
