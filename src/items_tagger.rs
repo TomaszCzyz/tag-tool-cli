@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use tracing::error;
 use uuid::Uuid;
 
+/// This struct groups logic related to items tagging.
 pub struct ItemsTagger {
     db_ctx: DbContext,
     manager: AggregateManager<SqliteStore<Item, ItemEvent>>,
