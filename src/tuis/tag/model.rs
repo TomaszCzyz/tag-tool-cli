@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use tui_input::Input;
 
 #[derive(Debug, Default)]
@@ -7,7 +8,8 @@ pub struct Model {
     pub input: Input,
     pub tags: Vec<String>,
     pub top_tag_suggestion: Option<String>,
-    /// tag text with indices of matched characters
+    pub file_path: PathBuf,
+    /// Tag text with indices of matched characters.
     pub tags_suggestions: Vec<(String, Vec<usize>)>,
 }
 
@@ -26,9 +28,9 @@ pub enum RunningState {
 
 #[derive(Debug, Default)]
 pub enum EditingMode {
-    /// we are in the middle of typing a tag name
+    /// We are in the middle of typing a tag name.
     #[default]
     Typing,
-    /// the new tag query is empty, we are waiting for the user to start typing
+    /// The new tag query is empty, we are waiting for the user to start typing
     Idle,
 }

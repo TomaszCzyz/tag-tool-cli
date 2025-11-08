@@ -45,6 +45,7 @@ impl TagTui {
         let mut model = Model {
             running_state: RunningState::Running,
             editing_mode: Default::default(),
+            file_path: self.path_buf.clone(),
             tags: tags.iter().cloned().collect(),
             tags_suggestions: vec![],
             top_tag_suggestion: None,

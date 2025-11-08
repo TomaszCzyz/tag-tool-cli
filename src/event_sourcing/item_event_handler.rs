@@ -20,7 +20,7 @@ impl EventHandler<Item> for ItemEventHandler {
         match &event.payload {
             ItemEvent::ItemCreated { path, hash } => {
                 self.view
-                    .upsert(event.aggregate_id, path.into(), hash, HashSet::new(), &self.pool)
+                    .upsert(event.aggregate_id, path.clone(), hash, HashSet::new(), &self.pool)
                     .await
                     .unwrap();
             }

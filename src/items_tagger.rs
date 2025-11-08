@@ -11,7 +11,7 @@ use log::info;
 use same_file::is_same_file;
 use std::collections::HashSet;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tracing::error;
 use uuid::Uuid;
 
@@ -28,7 +28,7 @@ impl ItemsTagger {
         Self { db_ctx, manager }
     }
 
-    pub async fn tag_item(&self, path: &PathBuf, tags: &[String], move_to_common_storage: bool) -> color_eyre::Result<(), Report> {
+    pub async fn tag_item(&self, path: &Path, tags: &[String], move_to_common_storage: bool) -> color_eyre::Result<(), Report> {
         let db_ctx = &self.db_ctx;
         let manager = &self.manager;
 
@@ -36,7 +36,7 @@ impl ItemsTagger {
         let aggregate_id = if let Some(item) = db_ctx.item_view.find_by_hash(&hash, &db_ctx.db).await? {
             info!("Found item: {:}", item);
             // TODO: validate case, when paths are the same, but contents are different
-            if let Ok(is_same) = is_same_file(&item.path, path) {
+            if let Ok(is_same) = is_same_file(&item.path, &path) {
                 if !is_same {
                     panic!("File with the same content is already tracked")
                 }
@@ -44,7 +44,7 @@ impl ItemsTagger {
             item.id
         } else {
             info!("Creating new item: {:?}", path);
-            self.create_item(path, hash).await?
+            self.create_item(&path, hash).await?
         };
         let aggregate_state = manager.load(aggregate_id).await?.unwrap();
 
@@ -72,12 +72,12 @@ impl ItemsTagger {
         Ok(())
     }
 
-    async fn create_item(&self, path: &PathBuf, hash: Hash) -> color_eyre::Result<Uuid, Report> {
+    async fn create_item(&self, path: &Path, hash: Hash) -> color_eyre::Result<Uuid, Report> {
         let new_aggregate_id = Uuid::new_v4();
         let aggregate_state = AggregateState::with_id(new_aggregate_id);
 
         self.manager
-            .handle_command(aggregate_state, ItemCommand::CreateItem { hash, path: path.clone() })
+            .handle_command(aggregate_state, ItemCommand::CreateItem { hash, path: path.to_path_buf() })
             .await??;
 
         Ok(new_aggregate_id)

@@ -16,7 +16,7 @@ pub struct TagItemsView;
 
 #[allow(dead_code)]
 impl TagItemsView {
-    const TABLE_NAME: &'static str = "tag_items_view";
+    const TABLE_NAME: &'static str = "view_tags_items";
 
     pub async fn new(pool: &Pool<Sqlite>) -> Self {
         let query: String = format!(
@@ -105,7 +105,7 @@ impl TagItemsView {
             r#"
             SELECT DISTINCT iv.id, iv.path, iv.hash, iv.tags
             FROM {0} tiv
-            JOIN item_view iv ON tiv.item_id = iv.id
+            JOIN view_items iv ON tiv.item_id = iv.id
             WHERE tiv.tag IN ({1})
             ORDER BY iv.path
             "#,

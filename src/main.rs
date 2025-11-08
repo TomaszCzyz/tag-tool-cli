@@ -82,9 +82,11 @@ async fn main() -> Result<()> {
                 return Ok(());
             }
 
+            let path = path.canonicalize()?;
+
             if let Some(tags) = tags_option {
                 let tagger = ItemsTagger::initialize(db_ctx.clone()).await;
-                tagger.tag_item(path, tags, *move_to_common_storage).await
+                tagger.tag_item(path.as_path(), tags, *move_to_common_storage).await
             } else {
                 let app = TagTui::from(db_ctx, path.to_path_buf()).await;
                 launch_tag_tui(app).await?

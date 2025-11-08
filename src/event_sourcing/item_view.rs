@@ -26,7 +26,7 @@ pub struct ItemView;
 
 #[allow(dead_code)]
 impl ItemView {
-    const TABLE_NAME: &'static str = "item_view";
+    const TABLE_NAME: &'static str = "view_items";
 
     pub async fn new(pool: &Pool<Sqlite>) -> Self {
         let query: String = format!(
@@ -66,7 +66,8 @@ impl ItemView {
         tags: HashSet<String>,
         executor: impl Executor<'_, Database = Sqlite>,
     ) -> Result<(), sqlx::Error> {
-        let path_normalized = path_buf.canonicalize()?;
+        let buf = path_buf.canonicalize()?;
+        let path_normalized = buf.to_string_lossy();
         let tags_normalized = tags.iter().cloned().collect::<Vec<_>>().join(",");
 
         let query = format!(
@@ -89,7 +90,7 @@ impl ItemView {
 
         sqlx::query(query.as_str())
             .bind(id)
-            .bind(&path_normalized.to_string_lossy())
+            .bind(&path_normalized)
             .bind(&hash.as_bytes()[..])
             .bind(tags_normalized)
             .fetch_optional(executor)
@@ -102,16 +103,19 @@ impl ItemView {
         hash: &Hash,
         executor: impl Executor<'_, Database = Sqlite>,
     ) -> Result<Option<ItemViewRow>, sqlx::Error> {
-        let rows = query_as::<_, ItemViewRow>(
+        let query = format!(
             r#"
             SELECT *
-            FROM item_view
+            FROM {}
             WHERE hash = ?
             "#,
-        )
-        .bind(&hash.as_bytes()[..])
-        .fetch_all(executor)
-        .await?;
+            Self::TABLE_NAME
+        );
+
+        let rows = query_as::<_, ItemViewRow>(query.as_str())
+            .bind(&hash.as_bytes()[..])
+            .fetch_all(executor)
+            .await?;
 
         if rows.is_empty() {
             return Ok(None);
@@ -163,8 +167,7 @@ impl ItemView {
         new_path: PathBuf,
         executor: impl Executor<'_, Database = Sqlite> + Copy,
     ) -> Result<(), sqlx::Error> {
-        let new_path_canonical = new_path.canonicalize()?;
-        let new_path_str = new_path_canonical.to_string_lossy().to_string();
+        let new_path_str = new_path.canonicalize()?.to_string_lossy().to_string();
 
         let update_sql = format!("UPDATE {} SET path = ? WHERE id = ?", Self::TABLE_NAME);
         sqlx::query(&update_sql)
