@@ -1,6 +1,10 @@
 use blake3::Hash;
+use std::path::Path;
 
-pub(crate) fn hash_file(path: impl AsRef<std::path::Path>) -> Hash {
+pub(crate) fn hash_file<P>(path: P) -> Hash
+where
+    P: AsRef<Path>,
+{
     let mut hasher = blake3::Hasher::new();
     match hasher.update_mmap(path) {
         Ok(_) => {}

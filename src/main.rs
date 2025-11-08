@@ -7,8 +7,10 @@ mod items_tagger;
 mod login;
 mod tuis;
 mod utils;
+mod tag_query;
+mod tag;
 
-use crate::cli::{Cli, Commands, TagsCommands};
+use crate::cli::{Cli, Commands, ItemsCommands, TagsCommands};
 use crate::event_sourcing::item_aggregate::{Item, ItemEvent};
 use crate::event_sourcing::item_event_handler::ItemEventHandler;
 use crate::event_sourcing::item_view::ItemView;
@@ -107,7 +109,12 @@ async fn main() -> Result<()> {
             let app = TagSearchTui::from(db_ctx);
             launch_search_tui(app).await?
         }
-        Commands::Items { .. } => Ok(()),
+        Commands::Items { command } => match command {
+            ItemsCommands::List { tag_query } => {
+                println!("{:?}", tag_query);
+                Ok(())
+            }
+        },
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::tag_query::TagQuery;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -41,4 +42,6 @@ pub enum TagsCommands {
 }
 
 #[derive(Subcommand)]
-pub enum ItemsCommands {}
+pub enum ItemsCommands {
+    List { tag_query: TagQuery },
+}
