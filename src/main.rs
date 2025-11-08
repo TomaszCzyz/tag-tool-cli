@@ -26,13 +26,11 @@ use directories::{ProjectDirs, UserDirs};
 use esrs::manager::AggregateManager;
 use log::info;
 use once_cell::sync::Lazy;
-use ratatui::crossterm::{ExecutableCommand, cursor};
 use ratatui::{TerminalOptions, Viewport};
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Pool, Sqlite};
 use std::fs;
 use std::fs::OpenOptions;
-use std::io::stdout;
 use tokio::time::Instant;
 
 static PROJECT_DIRS: Lazy<ProjectDirs> =
@@ -143,14 +141,10 @@ async fn launch_tag_tui(app: TagTui) -> Result<Result<()>, Report> {
     let terminal = ratatui::init_with_options(TerminalOptions {
         viewport: Viewport::Inline(5),
     });
-    let t = terminal.size()?;
+    let _t = terminal.size()?;
 
     color_eyre::install()?;
     let result = app.run(terminal).await;
-
-    // reset the cursor to the left
-    let mut stdout = stdout();
-    stdout.execute(cursor::MoveTo(0, t.height))?;
 
     ratatui::restore();
     Ok(result)

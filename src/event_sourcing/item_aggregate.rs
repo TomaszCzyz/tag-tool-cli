@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::types::chrono::{DateTime, Utc};
 use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
+use std::path::PathBuf;
 use thiserror::Error;
 
 pub struct Item;
@@ -53,7 +54,7 @@ impl Aggregate for Item {
 
 #[derive(Debug)]
 pub struct ItemState {
-    pub path: String,
+    pub path: PathBuf,
     pub hash: Hash,
     pub tags: HashSet<String>,
     pub created_at: DateTime<Utc>,
@@ -62,7 +63,7 @@ pub struct ItemState {
 impl Default for ItemState {
     fn default() -> Self {
         Self {
-            path: "".to_string(),
+            path: PathBuf::new(),
             hash: Hash::from([0; 32]),
             tags: HashSet::new(),
             created_at: Utc::now(),
@@ -71,18 +72,18 @@ impl Default for ItemState {
 }
 
 pub enum ItemCommand {
-    CreateItem { path: String, hash: Hash },
+    CreateItem { path: PathBuf, hash: Hash },
     Tag { tags: HashSet<String> },
     UnTag { tags: HashSet<String> },
-    Move { new_path: String },
+    Move { new_path: PathBuf },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum ItemEvent {
-    ItemCreated { path: String, hash: Hash },
+    ItemCreated { path: PathBuf, hash: Hash },
     Tagged { tags: HashSet<String> },
     UnTagged { tags: HashSet<String> },
-    Moved { new_path: String },
+    Moved { new_path: PathBuf },
 }
 
 #[derive(Debug, Error)]

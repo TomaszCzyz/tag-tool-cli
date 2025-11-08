@@ -77,13 +77,7 @@ impl ItemsTagger {
         let aggregate_state = AggregateState::with_id(new_aggregate_id);
 
         self.manager
-            .handle_command(
-                aggregate_state,
-                ItemCommand::CreateItem {
-                    hash,
-                    path: path.to_string_lossy().to_string(),
-                },
-            )
+            .handle_command(aggregate_state, ItemCommand::CreateItem { hash, path: path.clone() })
             .await??;
 
         Ok(new_aggregate_id)
@@ -124,12 +118,7 @@ impl ItemsTagger {
             match fs::rename(item_path, &dest_path_buf) {
                 Ok(_) => {
                     self.manager
-                        .handle_command(
-                            aggregate_state,
-                            ItemCommand::Move {
-                                new_path: dest_path_buf.to_string_lossy().to_string(),
-                            },
-                        )
+                        .handle_command(aggregate_state, ItemCommand::Move { new_path: dest_path_buf })
                         .await??;
                 }
                 Err(e) => {

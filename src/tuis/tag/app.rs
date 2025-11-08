@@ -60,6 +60,7 @@ impl TagTui {
             }
         }
 
+        print!("\r\n");
         Ok(())
     }
 

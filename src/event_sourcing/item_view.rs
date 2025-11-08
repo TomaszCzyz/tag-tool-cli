@@ -160,10 +160,10 @@ impl ItemView {
     pub async fn update_path(
         &self,
         id: Uuid,
-        new_path: String,
+        new_path: PathBuf,
         executor: impl Executor<'_, Database = Sqlite> + Copy,
     ) -> Result<(), sqlx::Error> {
-        let new_path_canonical = PathBuf::from(new_path).canonicalize()?;
+        let new_path_canonical = new_path.canonicalize()?;
         let new_path_str = new_path_canonical.to_string_lossy().to_string();
 
         let update_sql = format!("UPDATE {} SET path = ? WHERE id = ?", Self::TABLE_NAME);
