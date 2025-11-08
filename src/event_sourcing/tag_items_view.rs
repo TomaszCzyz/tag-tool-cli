@@ -1,4 +1,6 @@
 use crate::event_sourcing::item_view::ItemViewRow;
+use crate::tag_query::TagQuery;
+use crate::utils::placeholders;
 use sqlx::{Executor, Pool, Sqlite};
 use tokio::time::Instant;
 use tracing::debug;
@@ -126,5 +128,83 @@ impl TagItemsView {
         let query = format!("DELETE FROM {0} WHERE id = $1;", Self::TABLE_NAME);
 
         sqlx::query(query.as_str()).bind(id).fetch_optional(executor).await.map(|_| ())
+    }
+
+    pub async fn list(&self, tag_query: TagQuery, executor: impl Executor<'_, Database = Sqlite>) -> Result<Vec<ItemViewRow>, sqlx::Error> {
+        let optional_tags = tag_query.optional_tags();
+        let included_tags = tag_query.included_tags();
+        let excluded_tags = tag_query.excluded_tags();
+
+        println!("Optional tags: {:?}", optional_tags);
+        println!("Included tags: {:?}", included_tags);
+        println!("Excluded tags: {:?}", excluded_tags);
+
+        let mut query = r#"
+            SELECT DISTINCT iv.id, iv.path, iv.hash, iv.tags
+            FROM view_items iv
+            WHERE 1=1"#
+            .to_string();
+
+        let mut bindings: Vec<String> = Vec::new();
+
+        // Handle included tags (must have ALL of these)
+        if !included_tags.is_empty() {
+            query.push_str(&format!(
+                r#"
+                AND iv.id IN (
+                    SELECT item_id
+                    FROM {0}
+                    WHERE tag IN ({1})
+                    GROUP BY item_id
+                    HAVING COUNT(DISTINCT tag) = ?
+                )"#,
+                Self::TABLE_NAME,
+                placeholders(included_tags.len())
+            ));
+            bindings.extend(included_tags.iter().map(|t| t.to_string()));
+            bindings.push(included_tags.len().to_string());
+        }
+
+        // Handle excluded tags (must NOT have ANY of these)
+        if !excluded_tags.is_empty() {
+            query.push_str(&format!(
+                r#"
+                AND iv.id NOT IN (
+                    SELECT item_id
+                    FROM {0}
+                    WHERE tag IN ({1})
+                )"#,
+                Self::TABLE_NAME,
+                placeholders(excluded_tags.len())
+            ));
+            bindings.extend(excluded_tags.iter().map(|t| t.to_string()));
+        }
+
+        // Handle optional tags (must have AT LEAST ONE of these)
+        if !optional_tags.is_empty() {
+            query.push_str(&format!(
+                r#"
+                AND iv.id IN (
+                    SELECT item_id
+                    FROM {0}
+                    WHERE tag IN ({1})
+                )"#,
+                Self::TABLE_NAME,
+                placeholders(optional_tags.len())
+            ));
+            bindings.extend(optional_tags.iter().map(|t| t.to_string()));
+        }
+
+        query.push_str("ORDER BY iv.path");
+
+        println!("Query: {}", query);
+
+        // Build and execute the query
+        let mut query_builder = sqlx::query_as::<_, ItemViewRow>(query.as_str());
+        for binding in bindings {
+            query_builder = query_builder.bind(binding);
+        }
+
+        query_builder.fetch_all(executor).await
     }
 }

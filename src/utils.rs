@@ -1,3 +1,4 @@
+use std::iter::repeat;
 use blake3::Hash;
 use std::path::Path;
 
@@ -12,4 +13,8 @@ where
     }
     let hash = hasher.finalize();
     hash
+}
+
+pub(crate) fn placeholders(count: usize) -> String {
+    repeat("?").take(count).collect::<Vec<_>>().join(", ")
 }

@@ -5,10 +5,10 @@ mod cli;
 mod event_sourcing;
 mod items_tagger;
 mod login;
+mod tag;
+mod tag_query;
 mod tuis;
 mod utils;
-mod tag_query;
-mod tag;
 
 use crate::cli::{Cli, Commands, ItemsCommands, TagsCommands};
 use crate::event_sourcing::item_aggregate::{Item, ItemEvent};
@@ -33,6 +33,8 @@ use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::{Pool, Sqlite};
 use std::fs;
 use std::fs::OpenOptions;
+use std::path::Path;
+use sha2::digest::typenum::op;
 use tokio::time::Instant;
 
 static PROJECT_DIRS: Lazy<ProjectDirs> =
@@ -111,7 +113,11 @@ async fn main() -> Result<()> {
         }
         Commands::Items { command } => match command {
             ItemsCommands::List { tag_query } => {
-                println!("{:?}", tag_query);
+                let items = tag_items_view.list(tag_query.clone(), &db).await?;
+                for item in items {
+                    let path = Path::new(&item.path);
+                    println!("{:?} {}", path.file_name().unwrap_or_default(), item.tags);
+                }
                 Ok(())
             }
         },
@@ -178,7 +184,8 @@ async fn setup_db() -> Pool<Sqlite> {
         Err(err) => panic!("error creating database file {}", err),
     }
 
-    let db = SqlitePoolOptions::new().connect(path.to_str().unwrap()).await.unwrap();
+    let options = SqlitePoolOptions::new();
+    let db = options.connect(path.to_str().unwrap()).await.unwrap();
 
     sqlx::query(
         "

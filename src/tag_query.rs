@@ -42,7 +42,8 @@ impl TryFrom<&str> for TagQuery {
                 }
                 Some('+') => {
                     let tag = Tag::try_from(chars.as_str())?;
-                    included_tags.push(tag);
+                    included_tags.push(tag.clone());
+                    optional_tags.push(tag);
                 }
                 Some(c) if c.is_ascii_alphanumeric() => {
                     let tag = Tag::try_from(query_part)?;
@@ -64,5 +65,19 @@ impl FromStr for TagQuery {
     type Err = TagError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         TagQuery::try_from(s)
+    }
+}
+
+impl TagQuery {
+    pub fn optional_tags(&self) -> &[Tag] {
+        &self.optional_tags
+    }
+
+    pub fn included_tags(&self) -> &[Tag] {
+        &self.included_tags
+    }
+
+    pub fn excluded_tags(&self) -> &[Tag] {
+        &self.excluded_tags
     }
 }

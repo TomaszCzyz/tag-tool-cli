@@ -10,7 +10,7 @@ pub enum TagError {
     InvalidChar,
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct Tag(String);
 
 impl Tag {

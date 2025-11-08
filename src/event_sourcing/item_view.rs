@@ -183,8 +183,4 @@ impl ItemView {
 
         sqlx::query(query.as_str()).bind(id).fetch_optional(executor).await.map(|_| ())
     }
-
-    pub async fn list(&self, tag_query: String, executor: impl Executor<'_, Database = Sqlite>) -> Result<Vec<ItemViewRow>, sqlx::Error> {
-        todo!()
-    }
 }
