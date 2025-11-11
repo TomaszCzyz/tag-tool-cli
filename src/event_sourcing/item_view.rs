@@ -1,9 +1,10 @@
+use crate::tag::Tag;
 use blake3::Hash;
 use log::warn;
 use sqlx::{Executor, Pool, Sqlite, query_as};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 #[allow(unused)]
@@ -125,10 +126,39 @@ impl ItemView {
         Ok(Some(r))
     }
 
+    pub async fn find_by_path(
+        &self,
+        path: &Path,
+        executor: impl Executor<'_, Database = Sqlite>,
+    ) -> Result<Option<ItemViewRow>, sqlx::Error> {
+        let query = format!(
+            r#"
+            SELECT *
+            FROM {}
+            WHERE path = ?
+            "#,
+            Self::TABLE_NAME
+        );
+
+        let rows = query_as::<_, ItemViewRow>(query.as_str())
+            .bind(path.to_string_lossy())
+            .fetch_all(executor)
+            .await?;
+
+        if rows.is_empty() {
+            return Ok(None);
+        }
+
+        debug_assert!(rows.len() == 1, "there are two equal paths in db, which is invalid");
+
+        let r = rows.into_iter().next().unwrap();
+        Ok(Some(r))
+    }
+
     pub async fn add_tag(
         &self,
         id: Uuid,
-        tags: &HashSet<String>,
+        tags: &HashSet<Tag>,
         executor: impl Executor<'_, Database = Sqlite> + Copy,
     ) -> Result<(), sqlx::Error> {
         let select_sql = format!("SELECT * FROM {} WHERE id = ?", Self::TABLE_NAME);
@@ -142,17 +172,17 @@ impl ItemView {
             return Ok(());
         };
 
-        let mut set: HashSet<String> = if row.tags.is_empty() {
+        let mut set = if row.tags.is_empty() {
             HashSet::new()
         } else {
-            row.tags.split(',').map(str::to_string).collect()
+            row.tags.split(',').filter_map(|t| Tag::try_from(t).ok()).collect()
         };
 
         for t in tags.iter().cloned() {
             set.insert(t);
         }
 
-        let mut merged: Vec<String> = set.into_iter().collect();
+        let mut merged = set.iter().map(|t| t.as_str()).collect::<Vec<_>>();
         merged.sort_unstable();
         let merged_str = merged.join(",");
 

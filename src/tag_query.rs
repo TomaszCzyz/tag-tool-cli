@@ -15,6 +15,12 @@ pub struct TagQuery {
     excluded_tags: Vec<Tag>,
 }
 
+impl TagQuery {
+    pub fn is_empty(&self) -> bool {
+        self.optional_tags.is_empty() && self.included_tags.is_empty() && self.excluded_tags.is_empty()
+    }
+}
+
 impl Debug for TagQuery {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut parts = Vec::new();

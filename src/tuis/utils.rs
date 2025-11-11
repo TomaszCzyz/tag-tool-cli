@@ -1,3 +1,4 @@
+use crate::tag::Tag;
 use fuzzy_matcher::FuzzyMatcher;
 use ratatui::crossterm::event::KeyCode::{Backspace, Char, Delete, End, Home, Left, Right, Tab};
 use ratatui::crossterm::event::{KeyEvent, KeyModifiers};
@@ -26,7 +27,7 @@ pub fn map_to_input_request(key_event: KeyEvent) -> Option<InputRequest> {
     }
 }
 
-pub fn calc_tags_suggestions(tags: &[&str], pattern: &str, matcher: &Box<dyn FuzzyMatcher>) -> Vec<(String, Vec<usize>)> {
+pub(crate) fn calc_tags_suggestions(tags: &[&Tag], pattern: &str, matcher: &Box<dyn FuzzyMatcher>) -> Vec<(Tag, Vec<usize>)> {
     let pattern = pattern.trim();
     let mut score_tags = tags
         .iter()
@@ -41,6 +42,6 @@ pub fn calc_tags_suggestions(tags: &[&str], pattern: &str, matcher: &Box<dyn Fuz
     score_tags
         .into_iter()
         .take(30)
-        .map(|((_, indices), tag)| (tag.to_string(), indices))
+        .map(|((_, indices), &tag)| (Tag::from(tag.clone()), indices))
         .collect()
 }

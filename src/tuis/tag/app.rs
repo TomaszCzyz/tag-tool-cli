@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 use tui_input::Input;
 
+#[derive(Debug)]
 enum Message {
     InputKeyEventEntered(KeyEvent),
     AcceptTopSuggestion,
@@ -57,6 +58,7 @@ impl TagTui {
 
             let mut current_msg = self.handle_event(&model)?;
             while let Some(msg) = current_msg {
+                println!("msg: {:?}", msg);
                 current_msg = self.update(&mut model, msg).await;
             }
         }
@@ -107,12 +109,7 @@ impl TagTui {
                     None => model.input.value(),
                 };
                 let input_tags = model.input_tags();
-                let vec = model
-                    .tags
-                    .iter()
-                    .filter(|&tag| !input_tags.contains(tag))
-                    .map(|s| s.as_str())
-                    .collect::<Vec<_>>();
+                let vec = model.tags.iter().filter(|&tag| !input_tags.contains(tag)).collect::<Vec<_>>();
                 model.tags_suggestions = calc_tags_suggestions(&vec, pattern, &self.matcher);
 
                 if let Some(top_suggestion) = model.tags_suggestions.first() {
@@ -122,6 +119,7 @@ impl TagTui {
                 None
             }
             Message::TagAndExit => {
+                println!("Tagging file: {:?}", self.path_buf);
                 let tagger = ItemsTagger::initialize(self.db_ctx.clone()).await;
                 tagger.tag_item(&self.path_buf, &model.input_tags(), false).await.unwrap();
 
@@ -142,8 +140,9 @@ impl TagTui {
         Ok(None)
     }
 
-    fn handle_key(&self, key: KeyEvent, _model: &Model) -> Option<Message> {
-        match _model.editing_mode {
+    fn handle_key(&self, key: KeyEvent, model: &Model) -> Option<Message> {
+        println!("{:?}", key);
+        match model.editing_mode {
             EditingMode::Typing => match key.code {
                 KeyCode::Enter => Some(Message::AcceptTopSuggestion),
                 KeyCode::Esc => Some(Message::Exit),

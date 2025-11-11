@@ -1,3 +1,4 @@
+use crate::tag::Tag;
 use std::path::PathBuf;
 use tui_input::Input;
 
@@ -6,16 +7,20 @@ pub struct Model {
     pub running_state: RunningState,
     pub editing_mode: EditingMode,
     pub input: Input,
-    pub tags: Vec<String>,
-    pub top_tag_suggestion: Option<String>,
+    pub tags: Vec<Tag>,
+    pub top_tag_suggestion: Option<Tag>,
     pub file_path: PathBuf,
     /// Tag text with indices of matched characters.
-    pub tags_suggestions: Vec<(String, Vec<usize>)>,
+    pub tags_suggestions: Vec<(Tag, Vec<usize>)>,
 }
 
 impl Model {
-    pub fn input_tags(&self) -> Vec<String> {
-        self.input.value().split_whitespace().map(|s| s.to_string()).collect()
+    pub fn input_tags(&self) -> Vec<Tag> {
+        self.input
+            .value()
+            .split_whitespace()
+            .filter_map(|s| Tag::try_from(s).ok())
+            .collect()
     }
 }
 

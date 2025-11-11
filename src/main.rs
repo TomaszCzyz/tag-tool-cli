@@ -34,7 +34,6 @@ use sqlx::{Pool, Sqlite};
 use std::fs;
 use std::fs::OpenOptions;
 use std::path::Path;
-use sha2::digest::typenum::op;
 use tokio::time::Instant;
 
 static PROJECT_DIRS: Lazy<ProjectDirs> =
@@ -95,6 +94,14 @@ async fn main() -> Result<()> {
                 let app = TagTui::from(db_ctx, path.to_path_buf()).await;
                 launch_tag_tui(app).await?
             }
+        }
+        Commands::Untag { path, tags: tags_option } => {
+            let path = path.canonicalize()?;
+            if let Some(tags) = tags_option {
+                let tagger = ItemsTagger::initialize(db_ctx.clone()).await;
+                tagger.untag_item(path.as_path(), tags).await?
+            }
+            Ok(())
         }
         Commands::Login => {
             let flow = LoginFlow::new();

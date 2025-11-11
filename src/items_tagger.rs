@@ -1,5 +1,6 @@
 use crate::event_sourcing::item_aggregate::{Item, ItemCommand, ItemEvent};
 use crate::event_sourcing::sqlite_store::event_store::SqliteStore;
+use crate::tag::Tag;
 use crate::utils::hash_file;
 use crate::{DbContext, USER_DIRS, setup_item_store_manager};
 use blake3::Hash;
@@ -28,7 +29,7 @@ impl ItemsTagger {
         Self { db_ctx, manager }
     }
 
-    pub async fn tag_item(&self, path: &Path, tags: &[String], move_to_common_storage: bool) -> color_eyre::Result<(), Report> {
+    pub async fn tag_item(&self, path: &Path, tags: &[Tag], move_to_common_storage: bool) -> color_eyre::Result<(), Report> {
         let db_ctx = &self.db_ctx;
         let manager = &self.manager;
 
@@ -72,12 +73,52 @@ impl ItemsTagger {
         Ok(())
     }
 
+    pub async fn untag_item(&self, path: &Path, tags: &[Tag]) -> color_eyre::Result<(), Report> {
+        let db_ctx = &self.db_ctx;
+        let manager = &self.manager;
+
+        let hash = hash_file(path);
+        let aggregate_id = if let Some(item) = db_ctx.item_view.find_by_hash(&hash, &db_ctx.db).await? {
+            info!("Found item: {:}", item);
+            if let Ok(is_same) = is_same_file(&item.path, &path) {
+                if !is_same {
+                    panic!("File with the same content is already tracked")
+                }
+            };
+            item.id
+        } else {
+            info!("Creating new item: {:?}", path);
+            self.create_item(&path, hash).await?
+        };
+        let aggregate_state = manager.load(aggregate_id).await?.unwrap();
+
+        let mut input_tags = HashSet::from_iter(tags.iter().cloned());
+        input_tags.retain(|t| !aggregate_state.inner().tags.contains(t));
+
+        if input_tags.is_empty() {
+            info!("The item already has tags: {:?}.", tags);
+            return Ok(());
+        }
+
+        manager
+            .handle_command(aggregate_state, ItemCommand::Tag { tags: input_tags })
+            .await??;
+
+        Ok(())
+    }
+
     async fn create_item(&self, path: &Path, hash: Hash) -> color_eyre::Result<Uuid, Report> {
         let new_aggregate_id = Uuid::new_v4();
         let aggregate_state = AggregateState::with_id(new_aggregate_id);
 
         self.manager
-            .handle_command(aggregate_state, ItemCommand::CreateItem { hash, path: path.to_path_buf() })
+            .handle_command(
+                aggregate_state,
+                ItemCommand::CreateItem {
+                    hash,
+                    path: path.to_path_buf(),
+                },
+            )
             .await??;
 
         Ok(new_aggregate_id)

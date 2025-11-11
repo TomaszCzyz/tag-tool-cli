@@ -1,7 +1,7 @@
 use crate::DbContext;
 use crate::tuis::search::model::{EditingMode, Model, RunningState};
 use crate::tuis::search::view::{TaggedItem, ViewRenderer};
-use crate::tuis::utils::map_to_input_request;
+use crate::tuis::utils::{calc_tags_suggestions, map_to_input_request};
 use fuzzy_matcher::FuzzyMatcher;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use ratatui::DefaultTerminal;
@@ -102,13 +102,8 @@ impl TagSearchTui {
                     None => model.input.value(),
                 };
                 let input_tags = model.input_tags();
-                let vec = model
-                    .tags
-                    .iter()
-                    .filter(|&tag| !input_tags.contains(tag))
-                    .map(|s| s.as_str())
-                    .collect::<Vec<_>>();
-                model.tags_suggestions = self.calc_tags_suggestions(&vec, pattern);
+                let vec = model.tags.iter().filter(|&tag| !input_tags.contains(tag)).collect::<Vec<_>>();
+                model.tags_suggestions = calc_tags_suggestions(&vec, pattern, &self.matcher);
 
                 if let Some(top_suggestion) = model.tags_suggestions.first() {
                     model.top_tag_suggestion = Some(top_suggestion.0.clone());
@@ -120,7 +115,7 @@ impl TagSearchTui {
                 model.tagged_items = self
                     .db_ctx
                     .tag_items_view
-                    .get_by_tags(model.input_tags(), &self.db_ctx.db)
+                    .get_by_tags(&model.input_tags(), &self.db_ctx.db)
                     .await
                     .unwrap()
                     .iter()
@@ -153,24 +148,5 @@ impl TagSearchTui {
             },
             _ => None,
         }
-    }
-
-    fn calc_tags_suggestions(&self, tags: &[&str], pattern: &str) -> Vec<(String, Vec<usize>)> {
-        let pattern = pattern.trim();
-        let mut score_tags = tags
-            .iter()
-            .filter_map(|tag| match self.matcher.fuzzy_indices(tag, pattern) {
-                Some(result) => Some((result, tag)),
-                None => None,
-            })
-            .collect::<Vec<_>>();
-
-        score_tags.sort_unstable_by_key(|((s, _), _)| 100 - *s);
-
-        score_tags
-            .into_iter()
-            .take(30)
-            .map(|((_, indices), tag)| (tag.to_string(), indices))
-            .collect()
     }
 }

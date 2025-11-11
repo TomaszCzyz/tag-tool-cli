@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::fmt::{Debug, Display, Formatter};
 use std::path::PathBuf;
 use thiserror::Error;
+use crate::tag::Tag;
 
 pub struct Item;
 
@@ -56,7 +57,7 @@ impl Aggregate for Item {
 pub struct ItemState {
     pub path: PathBuf,
     pub hash: Hash,
-    pub tags: HashSet<String>,
+    pub tags: HashSet<Tag>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -73,16 +74,16 @@ impl Default for ItemState {
 
 pub enum ItemCommand {
     CreateItem { path: PathBuf, hash: Hash },
-    Tag { tags: HashSet<String> },
-    UnTag { tags: HashSet<String> },
+    Tag { tags: HashSet<Tag> },
+    UnTag { tags: HashSet<Tag> },
     Move { new_path: PathBuf },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub enum ItemEvent {
     ItemCreated { path: PathBuf, hash: Hash },
-    Tagged { tags: HashSet<String> },
-    UnTagged { tags: HashSet<String> },
+    Tagged { tags: HashSet<Tag> },
+    UnTagged { tags: HashSet<Tag> },
     Moved { new_path: PathBuf },
 }
 

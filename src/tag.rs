@@ -1,4 +1,5 @@
 use std::{fmt, ops::Deref, str::FromStr};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum TagError {
@@ -10,7 +11,7 @@ pub enum TagError {
     InvalidChar,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub struct Tag(String);
 
 impl Tag {

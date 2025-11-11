@@ -1,3 +1,4 @@
+use crate::tag::Tag;
 use crate::tag_query::TagQuery;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -29,9 +30,15 @@ pub enum Commands {
     Tag {
         path: PathBuf,
         #[arg(long, value_delimiter = ',', value_name = "TAG[,TAG...]")]
-        tags: Option<Vec<String>>,
+        tags: Option<Vec<Tag>>,
         #[arg(long = "move-to-common-storage", short = 'm', default_value_t = false)]
         move_to_common_storage: bool,
+    },
+    /// Tag an item.
+    Untag {
+        path: PathBuf,
+        #[arg(long, value_delimiter = ',', value_name = "TAG[,TAG...]")]
+        tags: Option<Vec<Tag>>,
     },
 }
 

@@ -1,4 +1,5 @@
 use crate::event_sourcing::item_view::ItemViewRow;
+use crate::tag::Tag;
 use crate::tag_query::TagQuery;
 use crate::utils::placeholders;
 use sqlx::{Executor, Pool, Sqlite};
@@ -74,7 +75,7 @@ impl TagItemsView {
             .map(|_| ())
     }
 
-    pub async fn get_all_tags(&self, executor: impl Executor<'_, Database = Sqlite>) -> Result<Vec<String>, sqlx::Error> {
+    pub async fn get_all_tags(&self, executor: impl Executor<'_, Database = Sqlite>) -> Result<Vec<Tag>, sqlx::Error> {
         let start = Instant::now();
 
         let query = format!(
@@ -90,12 +91,12 @@ impl TagItemsView {
 
         debug!("get_all_tags: {:?}", start.elapsed());
 
-        Ok(rows.into_iter().map(|(tag,)| tag).collect())
+        Ok(rows.into_iter().filter_map(|(tag,)| Tag::try_from(tag).ok()).collect())
     }
 
     pub async fn get_by_tags(
         &self,
-        tags: Vec<String>,
+        tags: &[Tag],
         executor: impl Executor<'_, Database = Sqlite>,
     ) -> Result<Vec<ItemViewRow>, sqlx::Error> {
         if tags.is_empty() {
@@ -117,7 +118,7 @@ impl TagItemsView {
 
         let mut query_builder = sqlx::query_as::<_, ItemViewRow>(query.as_str());
         for tag in tags {
-            query_builder = query_builder.bind(tag);
+            query_builder = query_builder.bind(tag.as_str());
         }
 
         let rows = query_builder.fetch_all(executor).await?;
@@ -195,7 +196,11 @@ impl TagItemsView {
             bindings.extend(optional_tags.iter().map(|t| t.to_string()));
         }
 
-        query.push_str("ORDER BY iv.path");
+        query.push_str(
+            r#"
+            ORDER BY iv.path
+            "#,
+        );
 
         println!("Query: {}", query);
 
