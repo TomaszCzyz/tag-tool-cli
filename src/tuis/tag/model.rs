@@ -1,4 +1,5 @@
 use crate::tag::Tag;
+use std::fmt::{Display, Formatter, Pointer, write};
 use std::path::PathBuf;
 use tui_input::Input;
 
@@ -12,6 +13,17 @@ pub struct Model {
     pub file_path: PathBuf,
     /// Tag text with indices of matched characters.
     pub tags_suggestions: Vec<(Tag, Vec<usize>)>,
+}
+
+impl Display for Model {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "running_state: {:?}", self.running_state)?;
+        writeln!(f, "editing_mode: {:?}", self.editing_mode)?;
+        writeln!(f, "input: {}", self.input.value())?;
+        writeln!(f, "top_tag_suggestion: {:?}", self.top_tag_suggestion)?;
+        writeln!(f, "tags_suggestions: {:?}", self.tags_suggestions)?;
+        Ok(())
+    }
 }
 
 impl Model {

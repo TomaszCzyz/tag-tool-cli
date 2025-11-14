@@ -6,6 +6,11 @@ authors = ["tczyz <tomczyz97@gmail.com>"]
 license = "MIT"
 edition = "2024"
 
+[[bin]]
+bench = false
+path = "src/main.rs"
+name = "tt"
+
 [dependencies]
 esrs = "0.18.0"
 sqlx = { version = "0.8.6", features = ["sqlite", "runtime-tokio", "chrono", "uuid"] }

@@ -161,7 +161,7 @@ async fn launch_search_tui(app: TagSearchTui) -> Result<Result<()>, Report> {
 
 async fn launch_tag_tui(app: TagTui) -> Result<Result<()>, Report> {
     let terminal = ratatui::init_with_options(TerminalOptions {
-        viewport: Viewport::Inline(5),
+        viewport: Viewport::Inline(15),
     });
     let _t = terminal.size()?;
 

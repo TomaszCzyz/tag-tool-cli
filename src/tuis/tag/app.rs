@@ -58,7 +58,7 @@ impl TagTui {
 
             let mut current_msg = self.handle_event(&model)?;
             while let Some(msg) = current_msg {
-                println!("msg: {:?}", msg);
+                // println!("msg: {:?}", msg);
                 current_msg = self.update(&mut model, msg).await;
             }
         }
@@ -87,11 +87,14 @@ impl TagTui {
                 if key_event.code == Char(' ') {
                     // Space ends a 'tag search', no matter if the entered tag name is valid or not.
                     model.editing_mode = EditingMode::Idle;
+
+                    return None;
                 }
 
                 if key_event.code == Char(' ') && model.input.value().chars().last() == Some(' ') {
                     return None;
                 }
+
                 if let Some(req) = map_to_input_request(key_event) {
                     model.editing_mode = EditingMode::Typing;
                     model.input.handle(req);
@@ -110,11 +113,10 @@ impl TagTui {
                 };
                 let input_tags = model.input_tags();
                 let vec = model.tags.iter().filter(|&tag| !input_tags.contains(tag)).collect::<Vec<_>>();
-                model.tags_suggestions = calc_tags_suggestions(&vec, pattern, &self.matcher);
+                let tags_suggestions = calc_tags_suggestions(&vec, pattern, &self.matcher);
 
-                if let Some(top_suggestion) = model.tags_suggestions.first() {
-                    model.top_tag_suggestion = Some(top_suggestion.0.clone());
-                }
+                model.top_tag_suggestion = tags_suggestions.first().and_then(|top_suggestion| Some(top_suggestion.0.clone()));
+                model.tags_suggestions = tags_suggestions;
 
                 None
             }
@@ -141,11 +143,11 @@ impl TagTui {
     }
 
     fn handle_key(&self, key: KeyEvent, model: &Model) -> Option<Message> {
-        println!("{:?}", key);
         match model.editing_mode {
             EditingMode::Typing => match key.code {
                 KeyCode::Enter => Some(Message::AcceptTopSuggestion),
                 KeyCode::Esc => Some(Message::Exit),
+                // KeyCode::Char(' ') => Some(Message::AcceptTopSuggestion),
                 _ => Some(Message::InputKeyEventEntered(key)),
             },
             EditingMode::Idle => match key.code {

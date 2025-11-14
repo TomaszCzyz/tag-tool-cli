@@ -2,6 +2,7 @@ use crate::tuis::tag::model::Model;
 use ratatui::prelude::*;
 use ratatui::style::Color;
 use ratatui::text::ToSpan;
+use ratatui::widgets::Paragraph;
 use std::iter;
 
 #[derive(Debug, Default)]
@@ -9,7 +10,7 @@ pub struct ViewRenderer;
 
 impl ViewRenderer {
     pub fn render(&self, model: &Model, frame: &mut Frame) {
-        let [header_area, input_area, suggestions_area, _fill_area] = Layout::vertical([
+        let [header_area, input_area, suggestions_area, fill_area] = Layout::vertical([
             Constraint::Length(1),
             Constraint::Length(1),
             Constraint::Length(1),
@@ -20,6 +21,7 @@ impl ViewRenderer {
         self.render_header(model, frame, header_area);
         self.render_input(model, frame, input_area);
         self.render_tags_suggestions(model, frame, suggestions_area);
+        self.render_debug_info(model, frame, fill_area);
     }
 
     fn render_header(&self, model: &Model, frame: &mut Frame, area: Rect) {
@@ -58,5 +60,11 @@ impl ViewRenderer {
         }));
 
         frame.render_widget(suggestions_line, area);
+    }
+
+    fn render_debug_info(&self, model: &Model, frame: &mut Frame, area: Rect) {
+        let paragraph = Paragraph::new(Text::raw(format!("\n{:}", model)));
+
+        frame.render_widget(paragraph, area);
     }
 }
