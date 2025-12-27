@@ -50,5 +50,14 @@ pub enum TagsCommands {
 
 #[derive(Subcommand)]
 pub enum ItemsCommands {
-    List { tag_query: TagQuery },
+    List {
+        tag_query: TagQuery,
+    },
+    /// Merge multiple databases into one.
+    Merge {
+        #[arg(long = "in", value_name = "INPUT_DB", required = true, num_args = 1..)]
+        input_dbs: Vec<PathBuf>,
+        #[arg(long = "out", value_name = "OUTPUT_DB")]
+        output_db: Option<PathBuf>,
+    },
 }

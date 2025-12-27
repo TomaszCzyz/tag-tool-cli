@@ -101,4 +101,7 @@ flake.lock
 
 # custom
 /playground
+/db_test
+
 # Before adding new lines, see the comment at the top.
+

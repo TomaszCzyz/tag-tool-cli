@@ -1,7 +1,9 @@
 #![allow(dead_code)]
 extern crate core;
 
+mod app_config;
 mod cli;
+mod db_manager;
 mod event_sourcing;
 mod items_tagger;
 mod login;
@@ -10,7 +12,9 @@ mod tag_query;
 mod tuis;
 mod utils;
 
+use crate::app_config::AppConfig;
 use crate::cli::{Cli, Commands, ItemsCommands, TagsCommands};
+use crate::db_manager::DbManager;
 use crate::event_sourcing::item_aggregate::{Item, ItemEvent};
 use crate::event_sourcing::item_event_handler::ItemEventHandler;
 use crate::event_sourcing::item_view::ItemView;
@@ -60,7 +64,11 @@ async fn main() -> Result<()> {
         .format_target(false)
         .init();
 
-    let db = setup_db().await;
+    let app_config = AppConfig::load_from_file("./tagtool_config.toml")?;
+
+    println!("app config: {:?}", app_config);
+
+    let db = DbManager::setup_db(app_config).await;
 
     let item_view = ItemView::new(&db).await;
     let tag_items_view = TagItemsView::new(&db).await;
@@ -127,6 +135,12 @@ async fn main() -> Result<()> {
                 }
                 Ok(())
             }
+            ItemsCommands::Merge { input_dbs, output_db } => {
+                let output_db_path = output_db.as_ref().expect("unsupported: missing output db");
+                
+                
+                Ok(())
+            }
         },
     }
 }
@@ -170,39 +184,4 @@ async fn launch_tag_tui(app: TagTui) -> Result<Result<()>, Report> {
 
     ratatui::restore();
     Ok(result)
-}
-
-async fn setup_db() -> Pool<Sqlite> {
-    let mut path = PROJECT_DIRS.data_dir().to_path_buf();
-
-    match fs::create_dir_all(path.clone()) {
-        Ok(_) => {}
-        Err(err) => {
-            panic!("error creating directory {}", err);
-        }
-    };
-
-    path.push("db.sqlite");
-
-    let result = OpenOptions::new().create(true).write(true).open(&path);
-
-    match result {
-        Ok(_) => {}
-        Err(err) => panic!("error creating database file {}", err),
-    }
-
-    let options = SqlitePoolOptions::new();
-    let db = options.connect(path.to_str().unwrap()).await.unwrap();
-
-    sqlx::query(
-        "
-            PRAGMA busy_timeout = 60000;
-            PRAGMA journal_mode = WAL;
-            ",
-    )
-    .execute(&db)
-    .await
-    .unwrap();
-
-    db
 }
