@@ -137,32 +137,11 @@ async fn main() -> Result<()> {
             }
             ItemsCommands::Merge { input_dbs, output_db } => {
                 let output_db_path = output_db.as_ref().expect("unsupported: missing output db");
-                
-                
+
                 Ok(())
             }
         },
     }
-}
-
-async fn setup_item_store_manager(db_ctx: DbContext) -> Result<AggregateManager<SqliteStore<Item, ItemEvent>>, Report> {
-    let item_event_handler = ItemEventHandler {
-        pool: db_ctx.db.clone(),
-        view: db_ctx.item_view.clone(),
-    };
-
-    let tag_items_event_handler = TagItemsEventHandler {
-        pool: db_ctx.db.clone(),
-        view: db_ctx.tag_items_view.clone(),
-    };
-
-    let store: SqliteStore<Item> = SqliteStoreBuilder::new(db_ctx.db.clone())
-        .add_event_handler(item_event_handler)
-        .add_event_handler(tag_items_event_handler)
-        .try_build()
-        .await?;
-
-    Ok(AggregateManager::new(store))
 }
 
 async fn launch_search_tui(app: TagSearchTui) -> Result<Result<()>, Report> {

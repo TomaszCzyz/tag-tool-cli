@@ -1,8 +1,9 @@
 use crate::event_sourcing::item_aggregate::{Item, ItemCommand, ItemEvent};
+use crate::event_sourcing::setup_item_store_manager;
 use crate::event_sourcing::sqlite_store::event_store::SqliteStore;
 use crate::tag::Tag;
 use crate::utils::hash_file;
-use crate::{DbContext, USER_DIRS, setup_item_store_manager};
+use crate::{DbContext, USER_DIRS};
 use blake3::Hash;
 use color_eyre::Report;
 use crossterm::event::{Event, KeyCode, KeyEvent, read};
