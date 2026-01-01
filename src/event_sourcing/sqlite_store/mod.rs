@@ -3,6 +3,7 @@ pub mod schema;
 pub mod persistable;
 pub mod sql;
 pub mod builder;
+mod rebuilder;
 
 #[derive(thiserror::Error, Debug)]
 pub enum SqliteStoreError {
